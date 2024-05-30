@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="SplashTheme" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="windowSplashScreenBackground">#D8D7D7</item>
+<!--        <item name="windowSplashScreenAnimatedIcon">@drawable/shots_3</item>-->
+<!--        <item name="android:windowBackground">@drawable/shots_3</item>-->
+        <!--        <item name="postSplashScreenTheme">@style/Theme.SplashScreenDemo</item>    -->
+
+        <item name="splashScreenIconSize">500dp</item>
+    </style>
+</resources>

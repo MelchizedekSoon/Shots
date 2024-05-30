@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "933623520026",
+    "firebase_url": "https://shots-de6a5-default-rtdb.firebaseio.com",
+    "project_id": "shots-de6a5",
+    "storage_bucket": "shots-de6a5.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:933623520026:android:62b37ae73e5ed49d76eaa3",
+        "android_client_info": {
+          "package_name": "com.example.shots"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCaT4JkdeJYxUrFhcPkpMstmAdCziplvOk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

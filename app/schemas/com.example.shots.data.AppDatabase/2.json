@@ -1,0 +1,292 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 2,
+    "identityHash": "6d84ed647ec0772ae84558ae35e54d86",
+    "entities": [
+      {
+        "tableName": "User",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `displayName` TEXT, `userName` TEXT, `birthday` INTEGER, `mediaOne` TEXT, `mediaOneType` TEXT, `mediaTwo` TEXT, `mediaTwoType` TEXT, `mediaThree` TEXT, `mediaThreeType` TEXT, `mediaFour` TEXT, `mediaFourType` TEXT, `mediaFive` TEXT, `mediaFiveType` TEXT, `mediaSix` TEXT, `mediaSixType` TEXT, `mediaSeven` TEXT, `mediaSevenType` TEXT, `mediaEight` TEXT, `mediaEightType` TEXT, `mediaNine` TEXT, `mediaNineType` TEXT, `profileVideo` TEXT, `aboutMe` TEXT, `link` TEXT, `height` TEXT, `lookingFor` TEXT, `gender` TEXT, `sexualOrientation` TEXT, `work` TEXT, `education` TEXT, `kids` TEXT, `religion` TEXT, `pets` TEXT, `exercise` TEXT, `smoking` TEXT, `drinking` TEXT, `marijuana` TEXT, `promptOneAnswer` TEXT, `promptTwoAnswer` TEXT, `promptThreeAnswer` TEXT, `promptOneQuestion` TEXT, `promptTwoQuestion` TEXT, `promptThreeQuestion` TEXT, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "displayName",
+            "columnName": "displayName",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "userName",
+            "columnName": "userName",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "birthday",
+            "columnName": "birthday",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "mediaOne",
+            "columnName": "mediaOne",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "mediaOneType",
+            "columnName": "mediaOneType",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "mediaTwo",
+            "columnName": "mediaTwo",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "mediaTwoType",
+            "columnName": "mediaTwoType",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "mediaThree",
+            "columnName": "mediaThree",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "mediaThreeType",
+            "columnName": "mediaThreeType",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "mediaFour",
+            "columnName": "mediaFour",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "mediaFourType",
+            "columnName": "mediaFourType",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "mediaFive",
+            "columnName": "mediaFive",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "mediaFiveType",
+            "columnName": "mediaFiveType",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "mediaSix",
+            "columnName": "mediaSix",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "mediaSixType",
+            "columnName": "mediaSixType",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "mediaSeven",
+            "columnName": "mediaSeven",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "mediaSevenType",
+            "columnName": "mediaSevenType",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "mediaEight",
+            "columnName": "mediaEight",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "mediaEightType",
+            "columnName": "mediaEightType",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "mediaNine",
+            "columnName": "mediaNine",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "mediaNineType",
+            "columnName": "mediaNineType",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "profileVideo",
+            "columnName": "profileVideo",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "aboutMe",
+            "columnName": "aboutMe",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "link",
+            "columnName": "link",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "height",
+            "columnName": "height",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "lookingFor",
+            "columnName": "lookingFor",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "gender",
+            "columnName": "gender",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "sexualOrientation",
+            "columnName": "sexualOrientation",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "work",
+            "columnName": "work",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "education",
+            "columnName": "education",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "kids",
+            "columnName": "kids",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "religion",
+            "columnName": "religion",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "pets",
+            "columnName": "pets",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "exercise",
+            "columnName": "exercise",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "smoking",
+            "columnName": "smoking",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "drinking",
+            "columnName": "drinking",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "marijuana",
+            "columnName": "marijuana",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "promptOneAnswer",
+            "columnName": "promptOneAnswer",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "promptTwoAnswer",
+            "columnName": "promptTwoAnswer",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "promptThreeAnswer",
+            "columnName": "promptThreeAnswer",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "promptOneQuestion",
+            "columnName": "promptOneQuestion",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "promptTwoQuestion",
+            "columnName": "promptTwoQuestion",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "promptThreeQuestion",
+            "columnName": "promptThreeQuestion",
+            "affinity": "TEXT",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '6d84ed647ec0772ae84558ae35e54d86')"
+    ]
+  }
+}

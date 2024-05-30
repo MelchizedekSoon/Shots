@@ -1,0 +1,43 @@
+[
+  {
+    "id": 1,
+    "prompt": "My favorite show is..."
+  },
+  {
+    "id": 2,
+    "prompt": "The song in my head is..."
+  },
+  {
+    "id": 3,
+    "prompt": "Send me a shot if you..."
+  },
+  {
+    "id": 4,
+    "prompt": "I'm willing to debate that..."
+  },
+  {
+    "id": 5,
+    "prompt": "My ideal first date is..."
+  },
+  {
+    "id": 6,
+    "prompt": "I really want to go to..."
+  },
+  {
+    "id": 7,
+    "prompt": "My role model is..."
+  },
+  {
+    "id": 8,
+    "prompt": "My go-to snack is..."
+  },
+  {
+    "id": 9,
+    "prompt": "One thing I want to do is..."
+  },
+  {
+    "id": 10,
+    "prompt": "Some qualities I like are..."
+  }
+
+]

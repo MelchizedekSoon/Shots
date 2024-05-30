@@ -1,0 +1,642 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "1f8e1b43984607e9412422cb77f38ccd",
+    "entities": [
+      {
+        "tableName": "User",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `displayName` TEXT, `userName` TEXT, `latitude` REAL, `longitude` REAL, `birthday` INTEGER, `mediaOne` TEXT, `typeOfMediaOne` TEXT, `mediaTwo` TEXT, `typeOfMediaTwo` TEXT, `mediaThree` TEXT, `typeOfMediaThree` TEXT, `mediaFour` TEXT, `typeOfMediaFour` TEXT, `mediaFive` TEXT, `typeOfMediaFive` TEXT, `mediaSix` TEXT, `typeOfMediaSix` TEXT, `mediaSeven` TEXT, `typeOfMediaSeven` TEXT, `mediaEight` TEXT, `typeOfMediaEight` TEXT, `mediaNine` TEXT, `typeOfMediaNine` TEXT, `mediaProfileVideo` TEXT, `typeOfMediaProfileVideo` TEXT, `aboutMe` TEXT, `link` TEXT, `height` TEXT, `lookingFor` TEXT, `gender` TEXT, `sexualOrientation` TEXT, `work` TEXT, `education` TEXT, `kids` TEXT, `religion` TEXT, `pets` TEXT, `exercise` TEXT, `smoking` TEXT, `drinking` TEXT, `marijuana` TEXT, `promptOneAnswer` TEXT, `promptTwoAnswer` TEXT, `promptThreeAnswer` TEXT, `promptOneQuestion` TEXT, `promptTwoQuestion` TEXT, `promptThreeQuestion` TEXT, `showMe` TEXT, `showUsers` TEXT NOT NULL, `acceptShots` TEXT NOT NULL, `ageMinToShow` INTEGER, `ageMaxToShow` INTEGER, `newLikesCount` INTEGER, `newShotsCount` INTEGER, `newMessagesCount` INTEGER, `timesBookmarkedCount` INTEGER, `likesCount` INTEGER, `shotsCount` INTEGER, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "displayName",
+            "columnName": "displayName",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "userName",
+            "columnName": "userName",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "latitude",
+            "columnName": "latitude",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "longitude",
+            "columnName": "longitude",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "birthday",
+            "columnName": "birthday",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "mediaOne",
+            "columnName": "mediaOne",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "typeOfMediaOne",
+            "columnName": "typeOfMediaOne",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "mediaTwo",
+            "columnName": "mediaTwo",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "typeOfMediaTwo",
+            "columnName": "typeOfMediaTwo",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "mediaThree",
+            "columnName": "mediaThree",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "typeOfMediaThree",
+            "columnName": "typeOfMediaThree",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "mediaFour",
+            "columnName": "mediaFour",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "typeOfMediaFour",
+            "columnName": "typeOfMediaFour",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "mediaFive",
+            "columnName": "mediaFive",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "typeOfMediaFive",
+            "columnName": "typeOfMediaFive",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "mediaSix",
+            "columnName": "mediaSix",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "typeOfMediaSix",
+            "columnName": "typeOfMediaSix",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "mediaSeven",
+            "columnName": "mediaSeven",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "typeOfMediaSeven",
+            "columnName": "typeOfMediaSeven",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "mediaEight",
+            "columnName": "mediaEight",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "typeOfMediaEight",
+            "columnName": "typeOfMediaEight",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "mediaNine",
+            "columnName": "mediaNine",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "typeOfMediaNine",
+            "columnName": "typeOfMediaNine",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "mediaProfileVideo",
+            "columnName": "mediaProfileVideo",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "typeOfMediaProfileVideo",
+            "columnName": "typeOfMediaProfileVideo",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "aboutMe",
+            "columnName": "aboutMe",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "link",
+            "columnName": "link",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "height",
+            "columnName": "height",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "lookingFor",
+            "columnName": "lookingFor",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "gender",
+            "columnName": "gender",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "sexualOrientation",
+            "columnName": "sexualOrientation",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "work",
+            "columnName": "work",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "education",
+            "columnName": "education",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "kids",
+            "columnName": "kids",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "religion",
+            "columnName": "religion",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "pets",
+            "columnName": "pets",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "exercise",
+            "columnName": "exercise",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "smoking",
+            "columnName": "smoking",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "drinking",
+            "columnName": "drinking",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "marijuana",
+            "columnName": "marijuana",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "promptOneAnswer",
+            "columnName": "promptOneAnswer",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "promptTwoAnswer",
+            "columnName": "promptTwoAnswer",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "promptThreeAnswer",
+            "columnName": "promptThreeAnswer",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "promptOneQuestion",
+            "columnName": "promptOneQuestion",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "promptTwoQuestion",
+            "columnName": "promptTwoQuestion",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "promptThreeQuestion",
+            "columnName": "promptThreeQuestion",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "showMe",
+            "columnName": "showMe",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "showUsers",
+            "columnName": "showUsers",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "acceptShots",
+            "columnName": "acceptShots",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ageMinToShow",
+            "columnName": "ageMinToShow",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "ageMaxToShow",
+            "columnName": "ageMaxToShow",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "newLikesCount",
+            "columnName": "newLikesCount",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "newShotsCount",
+            "columnName": "newShotsCount",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "newMessagesCount",
+            "columnName": "newMessagesCount",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "timesBookmarkedCount",
+            "columnName": "timesBookmarkedCount",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "likesCount",
+            "columnName": "likesCount",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "shotsCount",
+            "columnName": "shotsCount",
+            "affinity": "INTEGER",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "Bookmark",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`bookmarkId` TEXT NOT NULL, `bookmarks` TEXT NOT NULL, PRIMARY KEY(`bookmarkId`), FOREIGN KEY(`bookmarkId`) REFERENCES `User`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "bookmarkId",
+            "columnName": "bookmarkId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bookmarks",
+            "columnName": "bookmarks",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "bookmarkId"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": [
+          {
+            "table": "User",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "bookmarkId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "SentLike",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sentLikeId` TEXT NOT NULL, `sentLikes` TEXT NOT NULL, PRIMARY KEY(`sentLikeId`), FOREIGN KEY(`sentLikeId`) REFERENCES `User`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "sentLikeId",
+            "columnName": "sentLikeId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sentLikes",
+            "columnName": "sentLikes",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "sentLikeId"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": [
+          {
+            "table": "User",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "sentLikeId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "ReceivedLike",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`receivedLikeId` TEXT NOT NULL, `receivedLikes` TEXT NOT NULL, PRIMARY KEY(`receivedLikeId`), FOREIGN KEY(`receivedLikeId`) REFERENCES `User`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "receivedLikeId",
+            "columnName": "receivedLikeId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "receivedLikes",
+            "columnName": "receivedLikes",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "receivedLikeId"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": [
+          {
+            "table": "User",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "receivedLikeId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "SentShot",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sentShotId` TEXT NOT NULL, `sentShots` TEXT NOT NULL, PRIMARY KEY(`sentShotId`), FOREIGN KEY(`sentShotId`) REFERENCES `User`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "sentShotId",
+            "columnName": "sentShotId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sentShots",
+            "columnName": "sentShots",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "sentShotId"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": [
+          {
+            "table": "User",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "sentShotId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "ReceivedShot",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`receivedShotId` TEXT NOT NULL, `receivedShots` TEXT NOT NULL, PRIMARY KEY(`receivedShotId`), FOREIGN KEY(`receivedShotId`) REFERENCES `User`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "receivedShotId",
+            "columnName": "receivedShotId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "receivedShots",
+            "columnName": "receivedShots",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "receivedShotId"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": [
+          {
+            "table": "User",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "receivedShotId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "BlockedUser",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`blockedUserId` TEXT NOT NULL, `blockedUsers` TEXT NOT NULL, PRIMARY KEY(`blockedUserId`), FOREIGN KEY(`blockedUserId`) REFERENCES `User`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "blockedUserId",
+            "columnName": "blockedUserId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "blockedUsers",
+            "columnName": "blockedUsers",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "blockedUserId"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": [
+          {
+            "table": "User",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "blockedUserId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "UserWhoBlockedYou",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`userWhoBlockedYouId` TEXT NOT NULL, `usersWhoBlockedYou` TEXT NOT NULL, PRIMARY KEY(`userWhoBlockedYouId`), FOREIGN KEY(`userWhoBlockedYouId`) REFERENCES `User`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "userWhoBlockedYouId",
+            "columnName": "userWhoBlockedYouId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "usersWhoBlockedYou",
+            "columnName": "usersWhoBlockedYou",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "userWhoBlockedYouId"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": [
+          {
+            "table": "User",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "userWhoBlockedYouId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '1f8e1b43984607e9412422cb77f38ccd')"
+    ]
+  }
+}
