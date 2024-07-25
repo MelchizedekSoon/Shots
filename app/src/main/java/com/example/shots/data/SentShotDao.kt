@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
+import androidx.room.Upsert
 
 @Dao
 interface SentShotDao {
@@ -22,12 +23,14 @@ interface SentShotDao {
     fun findById(sentShotIds: String): SentShot
 
     //This allows for you to add multiple bookmarks but manually one by one
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun insert(vararg sentShots: SentShot)
+//    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
+    fun upsert(vararg sentShots: SentShot)
 
     //This allows you to add multiple bookmarks by way of list
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun insertAll(sentShots: List<SentShot>)
+//    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
+    fun upsertAll(sentShots: List<SentShot>)
 
     @Delete
     fun delete(sentShot: SentShot)

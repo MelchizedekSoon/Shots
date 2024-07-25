@@ -1,225 +1,316 @@
 package com.example.shots.ui.theme
 
-import android.content.ContentValues.TAG
+import android.content.Context
 import android.net.Uri
 import android.util.Log
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
+import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.shots.RoomModule
+import com.example.shots.data.Drinking
+import com.example.shots.data.Education
+import com.example.shots.data.Exercise
 import com.example.shots.data.FirebaseRepository
+import com.example.shots.data.Gender
+import com.example.shots.data.Kids
 import com.example.shots.data.LookingFor
+import com.example.shots.data.Marijuana
+import com.example.shots.data.Pets
+import com.example.shots.data.Religion
+import com.example.shots.data.Smoking
 import com.example.shots.data.User
-import com.google.firebase.auth.FirebaseAuth
+import com.example.shots.data.UserRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+data class EditProfileUiState(
+    val mediaOne: String? = "",
+    val mediaTwo: String? = "",
+    val mediaThree: String? = "",
+    val mediaFour: String? = "",
+    val mediaFive: String? = "",
+    val mediaSix: String? = "",
+    val mediaSeven: String? = "",
+    val mediaEight: String? = "",
+    val mediaNine: String? = "",
+    val mediaProfileVideo: String? = "",
+    val userName: String? = "",
+    var displayName: String? = "",
+    val aboutMe: String? = "",
+    var promptOneAnswer: String? = "",
+    var promptTwoAnswer: String? = "",
+    var promptThreeAnswer: String? = "",
+    var promptOneQuestion: String? = "",
+    var promptTwoQuestion: String? = "",
+    var promptThreeQuestion: String? = "",
+    val link: String? = "",
+    val lookingFor: LookingFor = LookingFor.UNKNOWN,
+    val gender: Gender = Gender.UNKNOWN,
+    val height: String? = "",
+    val work: String? = "",
+    val education: Education = Education.UNKNOWN,
+    val kids: Kids = Kids.UNKNOWN,
+    val religion: Religion = Religion.UNKNOWN,
+    val pets: Pets = Pets.UNKNOWN,
+    val exercise: Exercise = Exercise.UNKNOWN,
+    val smoking: Smoking = Smoking.UNKNOWN,
+    val drinking: Drinking = Drinking.UNKNOWN,
+    val marijuana: Marijuana = Marijuana.UNKNOWN
+)
+
 @HiltViewModel
 class EditProfileViewModel @Inject constructor(
-    private val firebaseRepository: FirebaseRepository,
-    private val firebaseAuth: FirebaseAuth
+    firebaseRepository: FirebaseRepository,
+    private val userRepository: UserRepository,
+    private val dispatcher: CoroutineDispatcher
 ) : ViewModel() {
-    var selectedOption by mutableStateOf<LookingFor?>(null)
-
-//    var user = firebaseAuth.currentUser?.uid?.let {
-//        com.example.shots.data.User(
-//            it, null, null, null, null,
-//            null, null, null, null, null, null, null, null,
-//            null, null, null, null, null, null, null, null, null,
-//            null, null, null, null, null, null, null, null, null, null, null, null, null
-//        )
-//    }
-//
-//    enum class UserField {
-//        DISPLAY_NAME,
-//        BIRTHDAY,
-//        IMAGES,
-//        VIDEOS,
-//        PROFILE_VIDEO,
-//        ABOUT_ME,
-//        HEIGHT,
-//        LOOKING_FOR,
-//        GENDER,
-//        SEXUAL_ORIENTATION,
-//        WORK
-//    }
-
-//    @Composable
-//    fun pickMedia() {
-//        // Registers a photo picker activity launcher in single-select mode.
-//        val pickMedia =
-//            rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-//                // Callback is invoked after the user selects a media item or closes the
-//                // photo picker.
-//                if (uri != null) {
-//                    Log.d("PhotoPicker", "Selected URI: $uri")
-//                } else {
-//                    Log.d("PhotoPicker", "No media selected")
-//                }
-//            }
-//
-//// Include only one of the following calls to launch(), depending on the types
-//// of media that you want to let the user choose from.
-//
-//// Launch the photo picker and let the user choose images and videos.
-//        pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
-//
-//// Launch the photo picker and let the user choose only images.
-//        pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-//
-//// Launch the photo picker and let the user choose only videos.
-//        pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly))
-//
-//// Launch the photo picker and let the user choose only images/videos of a
-//// specific MIME type, such as GIFs.
-//        val mimeType = "image/gif"
-//        pickMedia.launch(
-//            PickVisualMediaRequest(
-//                ActivityResultContracts.PickVisualMedia.SingleMimeType(
-//                    mimeType
-//                )
-//            )
-//        )
-//    }
+    private val scope = CoroutineScope(dispatcher)
 
 
-//    suspend fun getUserData(userId: String): User? {
-////        Log.d(
-////            TAG, "At the point of being in view model after being retrieved, here are the" +
-////                    "values at that time, next is to go to the editProfileScreen where I will be used" +
-////                    "by retrievedData - $userId"
-////        )
-//        return firebaseRepository.getUserData(userId)
-//    }
+    var user: User? = null
 
-//    fun saveUserDataToFirebase(
-//        userId: String,
-//        userData: Map<String, Any>,
-//        mediaItems: Map<String, Uri>
-//    ) {
-//        viewModelScope.launch {
-//            val success = firebaseRepository.writeUserDataToFirebase(userId, userData, mediaItems)
-//            if (success) {
-////                Log.d(
-////                    TAG,
-////                    "User data successfully added at the time the userData includes $userData" +
-////                            "and the mediaItems include $mediaItems"
-////                )
-//                // Handle successful data save
-//            } else {
-////                Log.d(TAG, "User data not added")
-//                // Handle data save error
-//            }
-//        }
-//    }
+    private val _uiState = MutableStateFlow(EditProfileUiState())
+    val uiState: StateFlow<EditProfileUiState> = _uiState.asStateFlow()
 
-//    fun deleteImageFromFirebase(mediaIdentifier: String) {
-//        viewModelScope.launch {
-//            val userId = firebaseAuth.currentUser?.uid
-//            if (userId != null) {
-//                firebaseRepository.deleteMediaFromFirebase(userId, mediaIdentifier)
-////                Log.d(TAG, "If image was in DB at the $mediaIdentifier spot, it has been deleted")
-//            } else {
-////                Log.d(TAG, "userId is null so deleting the image is not possible")
-//            }
-//        }
-//    }
+    init {
+        try {
+            viewModelScope.launch(dispatcher) {
+                userRepository.getCurrentUser().collect { returnedUser ->
+                    user = returnedUser
+                }
+                loadEditProfileOptions()
+            }
+        } catch (npe: NullPointerException) {
+            Log.d("EditProfileViewModel", "This is the result of EditProfileViewModel initialization - NullPointerException: ${npe.message}")
+        }
+    }
 
-//    suspend fun getMetadataFromRepo(uri: String, mediaIdentifier: String) : String {
-//        return firebaseRepository.getMetadataFromStorage(mediaIdentifier)
-//    }
-//
-//    @Composable
-//    fun getUser() : User? {
-//        val context = LocalContext.current
-//        val appDatabase = RoomModule.provideAppDatabase(context)
-//        val userDao = appDatabase.userDao()
-//        val userId = firebaseAuth.currentUser?.uid ?: ""
-//        LaunchedEffect(Unit) {
-//            viewModelScope.launch(Dispatchers.IO) {
-//                user = userDao.findById(userId)
-//                val userList = userDao.getAll()
-//                for(eachUser in userList) {
-//                    Log.d(TAG, "Here's the data for each user - ${eachUser}")
-//                }
-//                Log.d(TAG, "This user returned ${user}")
-//            }
-//        }
-//        return user
-//    }
+    fun loadEditProfileOptions() {
+        //Hello
+        viewModelScope.launch(dispatcher) {
+            try {
+                userRepository.getCurrentUser().collect { returnedUser ->
 
+                    user = returnedUser
 
-//    fun saveImageToStorage(imageUri: Uri, mediaIdentifier: String) {
-//        viewModelScope.launch {
-//            val success = firebaseRepository.uploadImageToStorage(imageUri, mediaIdentifier)
-//            if (success) {
-//                Log.d(TAG, "User image successfully added")
-//                // Handle successful data save
-//            } else {
-//                Log.d(TAG, "User image not added")
-//                // Handle data save error
-//            }
-//        }
-//    }
+                    Log.d("EditProfileViewModel", "userName: ${returnedUser.userName}")
 
-//    fun saveVideoToStorage(videoUri: Uri, mediaIdentifier: String) {
-//        viewModelScope.launch {
-//            val success = firebaseRepository.uploadVideoToStorage(videoUri, mediaIdentifier)
-//            if (success) {
-//                Log.d(TAG, "User video successfully added")
-//                // Handle successful data save
-//            } else {
-//                Log.d(TAG, "User video not added")
-//                // Handle data save error
-//            }
-//        }
-//    }
+                    _uiState.value = EditProfileUiState( // Update the MutableStateFlow
+                        mediaOne = returnedUser.mediaOne,
+                        mediaTwo = returnedUser.mediaTwo,
+                        mediaThree = returnedUser.mediaThree,
+                        mediaFour = returnedUser.mediaFour,
+                        mediaFive = returnedUser.mediaFive,
+                        mediaSix = returnedUser.mediaSix,
+                        mediaSeven = returnedUser.mediaSeven,
+                        mediaEight = returnedUser.mediaEight,
+                        mediaNine = returnedUser.mediaNine,
+                        mediaProfileVideo = returnedUser.mediaProfileVideo,
+                        userName = returnedUser.userName,
+                        displayName = returnedUser.displayName,
+                        aboutMe = returnedUser.aboutMe,
+                        promptOneAnswer = returnedUser.promptOneAnswer,
+                        promptTwoAnswer = returnedUser.promptTwoAnswer,
+                        promptThreeAnswer = returnedUser.promptThreeAnswer,
+                        promptOneQuestion = returnedUser.promptOneQuestion,
+                        promptTwoQuestion = returnedUser.promptTwoQuestion,
+                        promptThreeQuestion = returnedUser.promptThreeQuestion,
+                        link = returnedUser.link,
+                        lookingFor = returnedUser.lookingFor ?: LookingFor.UNKNOWN,
+                        gender = returnedUser.gender ?: Gender.UNKNOWN,
+                        height = returnedUser.height,
+                        work = returnedUser.work,
+                        education = returnedUser.education ?: Education.UNKNOWN,
+                        kids = returnedUser.kids ?: Kids.UNKNOWN,
+                        religion = returnedUser.religion ?: Religion.UNKNOWN,
+                        pets = returnedUser.pets ?: Pets.UNKNOWN,
+                        exercise = returnedUser.exercise ?: Exercise.UNKNOWN,
+                        smoking = returnedUser.smoking ?: Smoking.UNKNOWN,
+                        drinking = returnedUser.drinking ?: Drinking.UNKNOWN,
+                        marijuana = returnedUser.marijuana ?: Marijuana.UNKNOWN
+                    )
 
-//    fun updateUserField(fieldName: UserField, value: Any?, userData: Map<String, Any>) {
-//        user = when (fieldName) {
-//            UserField.DISPLAY_NAME -> user?.copy(displayName = userData["displayName"] as String)
-//            UserField.BIRTHDAY -> user?.copy(birthday = userData["birthday"] as Calendar)
-//            UserField. -> user?.copy(mediaOne = userData["mediaOne"] as String)
-//            UserField.IMAGES -> user?.copy(images = userData["images"] as List<String>)
-//            UserField.VIDEOS -> user?.copy(videos = userData["videos"] as List<String>)
-//            UserField.PROFILE_VIDEO -> user?.copy(profileVideo = userData["profileVideo"] as String)
-//            UserField.ABOUT_ME -> user?.copy(aboutMe = userData["aboutMe"] as String)
-//            UserField.HEIGHT -> user?.copy(height = userData["height"] as String)
-//            UserField.LOOKING_FOR -> user?.copy(lookingFor = userData["lookingFor"] as LookingFor)
-//            UserField.GENDER -> user?.copy(gender = userData["gender"] as Gender)
-//            UserField.SEXUAL_ORIENTATION -> user?.copy(sexualOrientation = userData["sexualOrientation"] as SexualOrientation)
-//            UserField.WORK -> user?.copy(work = userData["work"] as String)
-//            else -> {}
-//        }
-//    }
+                }
+            } catch (npe: NullPointerException) {
+                Log.d("EditProfileViewModel", "$npe")
+            }
 
 
-//    @Composable
-//    fun UpdateUserProfile(vararg changes: UserProfileChangeRequest.Builder) {
-//        val user = firebaseAuth.currentUser
-//        userProfileChangeRequest {
-//            UserProfileChangeRequest.Builder()
-//        }
-//        val profileUpdates = userProfileChangeRequest {
-//            changes.forEach { updateBuilder ->
-//                updateBuilder.build()
-//            }
-//        }
-//        LaunchedEffect(Unit) {
-//            try {
-//                user?.updateProfile(profileUpdates)
-//                Log.d(TAG, "User profile updated.")
-//            } catch (e: Exception) {
-//                // Handle the exception and provide appropriate feedback to the user
-//                Log.e(TAG, "Failed to update user profile: ${e.message}")
-//            }
-//        }
-//    }
+            Log.d("EditProfileViewModel", "User: ${_uiState.value}")
+
+        }
+    }
+
+    fun resetYourEditProfileState() {
+        viewModelScope.launch(dispatcher) {
+            _uiState.value = EditProfileUiState()
+        }
+    }
+
+    fun saveAndStoreFields(context: Context): Boolean {
+        var wasSaved = false
+        viewModelScope.launch(dispatcher) {
+
+            val userData: MutableMap<String, Any> = mutableMapOf()
+            val mediaItems: MutableMap<String, Uri> = mutableMapOf()
+
+            Log.d("EditProfileViewModel", "${_uiState.value}")
+
+            userData["displayName"] = _uiState.value.displayName ?: ""
+            userData["aboutMe"] = _uiState.value.aboutMe ?: ""
+            userData["promptOneAnswer"] = _uiState.value.promptOneAnswer ?: ""
+            userData["promptTwoAnswer"] = _uiState.value.promptTwoAnswer ?: ""
+            userData["promptThreeAnswer"] = _uiState.value.promptThreeAnswer ?: ""
+            userData["promptOneQuestion"] = _uiState.value.promptOneQuestion ?: ""
+            userData["promptTwoQuestion"] = _uiState.value.promptTwoQuestion ?: ""
+            userData["promptThreeQuestion"] = _uiState.value.promptThreeQuestion ?: ""
+            userData["link"] = _uiState.value.link ?: ""
+            userData["lookingFor"] = _uiState.value.lookingFor
+            userData["gender"] = _uiState.value.gender
+            userData["height"] = _uiState.value.height ?: ""
+            userData["work"] = _uiState.value.work ?: ""
+            userData["education"] = _uiState.value.education
+            userData["kids"] = _uiState.value.kids
+            userData["religion"] = _uiState.value.religion
+            userData["pets"] = _uiState.value.pets
+            userData["exercise"] = _uiState.value.exercise
+            userData["smoking"] = _uiState.value.smoking
+            userData["drinking"] = _uiState.value.drinking
+            userData["marijuana"] = _uiState.value.marijuana
+
+
+            userRepository.saveUserData(
+                user?.id ?: "",
+                userData, mediaItems, context
+            )
+
+            wasSaved = true
+
+            loadEditProfileOptions()
+        }
+        return wasSaved
+    }
+
+    fun saveAndStoreMedia(
+        mediaIdentifier: String,
+        media: String,
+        context: Context,
+        wasSaved: (Boolean) -> Unit
+    ) {
+        viewModelScope.launch(dispatcher) {
+            val userData: MutableMap<String, Any> = mutableMapOf()
+            val mediaItems: MutableMap<String, Uri> = mutableMapOf()
+            mediaItems[mediaIdentifier] = media.toUri()
+            userRepository.saveUserData(
+                user?.id ?: "",
+                userData,
+                mediaItems,
+                context
+            )
+            val mediaWasSaved = true
+            if (mediaWasSaved) {
+                loadEditProfileOptions()
+                wasSaved(true)
+            } else {
+                wasSaved(false)
+            }
+        }
+    }
+
+    fun updateDisplayName(displayName: String) {
+        if (displayName.isNotEmpty()) {
+            _uiState.value = _uiState.value.copy(displayName = displayName)
+            Log.d("EditProfileViewModel", "${_uiState.value}")
+        } else {
+            _uiState.value = _uiState.value.copy(displayName = _uiState.value.userName)
+        }
+    }
+
+    fun updateAboutMe(aboutMe: String) {
+        _uiState.value = _uiState.value.copy(aboutMe = aboutMe)
+    }
+
+    fun updatePromptOneAnswer(promptOneAnswer: String) {
+        _uiState.value = _uiState.value.copy(promptOneAnswer = promptOneAnswer)
+    }
+
+    fun updatePromptTwoAnswer(promptTwoAnswer: String) {
+        _uiState.value = _uiState.value.copy(promptTwoAnswer = promptTwoAnswer)
+    }
+
+    fun updatePromptThreeAnswer(promptThreeAnswer: String) {
+        _uiState.value = _uiState.value.copy(promptThreeAnswer = promptThreeAnswer)
+    }
+
+    fun updatePromptOneQuestion(promptOneQuestion: String) {
+        _uiState.value = _uiState.value.copy(promptOneQuestion = promptOneQuestion)
+    }
+
+    fun updatePromptTwoQuestion(promptTwoQuestion: String) {
+        _uiState.value = _uiState.value.copy(promptTwoQuestion = promptTwoQuestion)
+    }
+
+    fun updatePromptThreeQuestion(promptThreeQuestion: String) {
+        _uiState.value = _uiState.value.copy(promptThreeQuestion = promptThreeQuestion)
+    }
+
+    fun updateLink(link: String) {
+        _uiState.value = _uiState.value.copy(link = link)
+    }
+
+    fun updateLookingFor(lookingFor: LookingFor) {
+        _uiState.value = _uiState.value.copy(lookingFor = lookingFor)
+    }
+
+    fun updateGender(gender: Gender) {
+        _uiState.value = _uiState.value.copy(gender = gender)
+    }
+
+    fun updateHeight(height: String) {
+        _uiState.value = _uiState.value.copy(height = height)
+    }
+
+    fun updateWork(work: String) {
+        _uiState.value = _uiState.value.copy(work = work)
+    }
+
+    fun updateEducation(education: Education) {
+        _uiState.value = _uiState.value.copy(education = education)
+    }
+
+    fun updateKids(kids: Kids) {
+        _uiState.value = _uiState.value.copy(kids = kids)
+    }
+
+    fun updateReligion(religion: Religion) {
+        _uiState.value = _uiState.value.copy(religion = religion)
+    }
+
+    fun updatePets(pets: Pets) {
+        _uiState.value = _uiState.value.copy(pets = pets)
+    }
+
+    fun updateExercise(exercise: Exercise) {
+        _uiState.value = _uiState.value.copy(exercise = exercise)
+    }
+
+    fun updateSmoking(smoking: Smoking) {
+        _uiState.value = _uiState.value.copy(smoking = smoking)
+    }
+
+    fun updateDrinking(drinking: Drinking) {
+        _uiState.value = _uiState.value.copy(drinking = drinking)
+    }
+
+    fun updateMarijuana(marijuana: Marijuana) {
+        _uiState.value = _uiState.value.copy(marijuana = marijuana)
+    }
+
+
 }

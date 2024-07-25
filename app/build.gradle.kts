@@ -1,5 +1,5 @@
 plugins {
-    id("com.android.application") version "8.4.1"
+    id("com.android.application") version "8.5.0"
     id("org.jetbrains.kotlin.android") version "1.9.22"
     id("com.google.gms.google-services") version "4.4.0"
     id("org.jetbrains.kotlin.kapt") version "1.9.22"
@@ -20,6 +20,7 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
         vectorDrawables {
             useSupportLibrary = true
         }
@@ -33,6 +34,10 @@ android {
     }
 
     buildTypes {
+
+        debug {
+
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
@@ -74,7 +79,7 @@ android {
             listOf(
                 "META-INF/LICENSE.md",
                 "META-INF/LICENSE-notice.md",
-        )
+            )
         )
     }
 
@@ -108,15 +113,16 @@ dependencies {
     implementation("io.getstream:stream-android-push-firebase:1.1.7")
 
 
-    implementation("androidx.compose.material:material-icons-extended:1.6.0-alpha08")
+    implementation("androidx.compose.material:material-icons-extended:1.6.8")
 }
 
 //Java-JWT for generating JWT tokens for chat messaging via GetStream
 
+
 dependencies {
-    implementation("io.jsonwebtoken:jjwt-api:0.11.2")
-    implementation("io.jsonwebtoken:jjwt-impl:0.11.2")
-    implementation("io.jsonwebtoken:jjwt-jackson:0.11.2")
+    implementation("io.jsonwebtoken:jjwt-api:0.12.5")
+    implementation("io.jsonwebtoken:jjwt-impl:0.12.5")
+    implementation("io.jsonwebtoken:jjwt-jackson:0.12.5")
 }
 
 
@@ -168,13 +174,13 @@ kapt {
 
 dependencies {
     // Compose UI
-    implementation("androidx.compose.ui:ui:1.6.5")
+    implementation("androidx.compose.ui:ui:1.6.8")
 
     // Compose runtime
-    implementation("androidx.compose.runtime:runtime:1.6.5")
+    implementation("androidx.compose.runtime:runtime:1.6.8")
 
     // LiveData integration for Compose
-    implementation("androidx.compose.runtime:runtime-livedata:1.6.5")
+    implementation("androidx.compose.runtime:runtime-livedata:1.6.8")
 }
 
 
@@ -219,9 +225,56 @@ dependencies {
 }
 
 
-
 //Android Testing
 dependencies {
+
+    constraints {
+        implementation("androidx.test:core:1.6.1") {
+            because("This version is required by other dependencies.")
+        }
+
+        implementation("androidx.test.ext:junit:1.2.1") {
+            because("This is the preferred version for compatibility.")
+        }
+    }
+
+    // To use the androidx.test.core APIs
+    androidTestImplementation("androidx.test:core:1.6.1")
+    // Kotlin extensions for androidx.test.core
+    androidTestImplementation("androidx.test:core-ktx:1.6.1")
+
+    // To use the androidx.test.espresso
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.0")
+
+    // To use the JUnit Extension APIs
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    // Kotlin extensions for androidx.test.ext.junit
+    androidTestImplementation("androidx.test.ext:junit-ktx:1.2.1")
+
+    // To use the Truth Extension APIs
+    androidTestImplementation("androidx.test.ext:truth:1.5.0")
+
+    // To use the androidx.test.runner APIs
+    androidTestImplementation("androidx.test:runner:1.5.0")
+
+    // To use android test orchestrator
+    androidTestUtil("androidx.test:orchestrator:1.5.0")
+
+
+    // Espresso dependencies
+//        androidTestImplementation( "androidx.test.espresso:espresso-core:$espressoVersion")
+//        androidTestImplementation( "androidx.test.espresso:espresso-contrib:$espressoVersion")
+//        androidTestImplementation( "androidx.test.espresso:espresso-intents:$espressoVersion")
+//        androidTestImplementation( "androidx.test.espresso:espresso-accessibility:$espressoVersion")
+//        androidTestImplementation( "androidx.test.espresso:espresso-web:$espressoVersion")
+//        androidTestImplementation( "androidx.test.espresso.idling:idling-concurrent:$espressoVersion")
+
+    // The following Espresso dependency can be either "implementation",
+    // or "androidTestImplementation", depending on whether you want the
+    // dependency to appear on your APK"s compile classpath or the test APK
+    // classpath.
+//        androidTestImplementation( "androidx.test.espresso:espresso-idling-resource:$espressoVersion")
+
 
     //espresso
 //    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
@@ -244,24 +297,25 @@ dependencies {
     // Required -- JUnit 4 framework
     testImplementation("junit:junit:4.13.2")
     // Optional -- Robolectric environment
-    testImplementation("androidx.test:core:1.5.0")
+    testImplementation("androidx.test:core:1.6.1")
     // Optional -- Mockito framework
     testImplementation("org.mockito:mockito-core:5.7.0")
     // Optional -- mockito-kotlin
     testImplementation("org.mockito.kotlin:mockito-kotlin:5.3.1")
     // Optional -- Mockk framework
     testImplementation("io.mockk:mockk:1.13.11")
+
 }
 
 //Firebase
 dependencies {
 
-    implementation("androidx.compose.ui:ui-test-junit4-android:1.6.7")
-    implementation("androidx.compose.ui:ui-test-android:1.6.7")
+    implementation("androidx.compose.ui:ui-test-junit4-android:1.6.8")
+    implementation("androidx.compose.ui:ui-test-android:1.6.8")
     androidTestImplementation("org.junit.jupiter:junit-jupiter:5.8.2")
     testImplementation("org.junit.jupiter:junit-jupiter:5.8.2")
     // Import the Firebase BoM
-    implementation(platform("com.google.firebase:firebase-bom:32.8.0"))
+    implementation(platform("com.google.firebase:firebase-bom:33.1.1"))
 
     implementation("com.google.firebase:firebase-appcheck-playintegrity")
 
@@ -298,7 +352,7 @@ dependencies {
 
     // Media3 Dependency
     dependencies {
-        val media3Version = "1.3.0"
+        val media3Version = "1.3.1"
 
         // For media playback using ExoPlayer
         implementation("androidx.media3:media3-exoplayer:$media3Version")
@@ -390,7 +444,7 @@ dependencies {
     dependencies {
         // CameraX core library using the camera2 implementation
 //        val camerax_version = "1.4.0-alpha04"
-        val cameraxVersion = "1.3.2"
+        val cameraxVersion = "1.3.4"
         // The following line is optional, as the core library is included indirectly by camera-camera2
         implementation("androidx.camera:camera-core:${cameraxVersion}")
         implementation("androidx.camera:camera-camera2:${cameraxVersion}")
@@ -407,17 +461,17 @@ dependencies {
     }
 
     // ExoPlayer
-    implementation("androidx.media3:media3-exoplayer:1.3.0")
-    implementation("androidx.media3:media3-exoplayer-dash:1.3.0")
-    implementation("androidx.media3:media3-ui:1.3.0")
+    implementation("androidx.media3:media3-exoplayer:1.3.1")
+    implementation("androidx.media3:media3-exoplayer-dash:1.3.1")
+    implementation("androidx.media3:media3-ui:1.3.1")
     implementation("com.google.android.exoplayer:exoplayer-core:2.19.1")
     implementation("com.google.android.exoplayer:exoplayer-ui:2.19.1") // For UI components (optional)
 
     dependencies {
         // Jetpack Compose
-        implementation("androidx.compose.ui:ui:1.6.5")
-        implementation("androidx.compose.material:material:1.6.5")
-        implementation("androidx.compose.ui:ui-tooling:1.6.5")
+        implementation("androidx.compose.ui:ui:1.6.8")
+        implementation("androidx.compose.material:material:1.6.8")
+        implementation("androidx.compose.ui:ui-tooling:1.6.8")
         // ExoPlayer
         implementation("com.google.android.exoplayer:exoplayer:2.19.1")
     }
@@ -426,7 +480,7 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.5.0")
 
     //DataStore
-    implementation("androidx.datastore:datastore-preferences:1.0.0")
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
 
     // More exo and accompanist
 //    implementation("dev.chrisbanes.accompanist:accompanist-video:0.20.0")
@@ -442,14 +496,14 @@ dependencies {
 
     //Hilt dependencies
     implementation("com.google.dagger:hilt-android:2.51")
-    implementation("androidx.camera:camera-core:1.3.2")
-    implementation("androidx.camera:camera-lifecycle:1.3.2")
-    implementation("androidx.camera:camera-video:1.3.2")
+    implementation("androidx.camera:camera-core:1.3.4")
+    implementation("androidx.camera:camera-lifecycle:1.3.4")
+    implementation("androidx.camera:camera-video:1.3.4")
     implementation("androidx.compose.material3:material3-android:1.2.1")
-    implementation("androidx.camera:camera-view:1.3.2")
+    implementation("androidx.camera:camera-view:1.3.4")
     implementation("androidx.navigation:navigation-compose:2.7.7")
-    implementation("androidx.compose.ui:ui-text-google-fonts:1.6.5")
-    implementation("com.google.android.material:material:1.11.0")
+    implementation("androidx.compose.ui:ui-text-google-fonts:1.6.8")
+    implementation("com.google.android.material:material:1.12.0")
     kapt("com.google.dagger:hilt-compiler:2.51")
 
 
@@ -462,7 +516,7 @@ dependencies {
     testAnnotationProcessor("com.google.dagger:hilt-compiler:2.51")
 
     testImplementation("junit:junit:4.13.2")
-    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
 //    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
     androidTestImplementation(platform("androidx.compose:compose-bom:2024.02.00"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
@@ -471,7 +525,7 @@ dependencies {
 
 
     dependencies {
-        implementation("androidx.compose.material:material:1.6.5")
+        implementation("androidx.compose.material:material:1.6.8")
     }
 
     dependencies {
@@ -479,34 +533,34 @@ dependencies {
     }
 
     dependencies {
-        implementation("androidx.compose.ui:ui:1.6.5")
-        implementation("androidx.compose.ui:ui-tooling:1.6.5")
-        implementation("androidx.compose.runtime:runtime:1.6.5")
-        implementation("androidx.compose.foundation:foundation:1.6.5")
+        implementation("androidx.compose.ui:ui:1.6.8")
+        implementation("androidx.compose.ui:ui-tooling:1.6.8")
+        implementation("androidx.compose.runtime:runtime:1.6.8")
+        implementation("androidx.compose.foundation:foundation:1.6.8")
         implementation("androidx.compose.material3:material3:1.2.1")
 //        implementation("androidx.compose.ui:ui-android-view:1.0.5")
-        implementation("androidx.activity:activity-compose:1.8.2")
+        implementation("androidx.activity:activity-compose:1.9.0")
 //        implementation("androidx.fragment:fragment-compose:1.4.0")
-        implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
-        implementation("androidx.compose.ui:ui-tooling-preview:1.6.5")
-        implementation("androidx.activity:activity-ktx:1.8.2")
-        implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+        implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.3")
+        implementation("androidx.compose.ui:ui-tooling-preview:1.6.8")
+        implementation("androidx.activity:activity-ktx:1.9.0")
+        implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.3")
 
     }
 
     dependencies {
-        val lifecycleVersion = "2.7.0"
+        val lifecycleVersion = "2.8.3"
         val archVersion = "2.2.0"
 
         //OKHTTP for Getting Stuff From The Internet
         implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
         //Google Places API for Location
-        implementation("com.google.android.libraries.places:places:3.4.0")
+        implementation("com.google.android.libraries.places:places:3.5.0")
 
-        implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0")
-        implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
-        implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.7.0")
+        implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:$lifecycleVersion")
+        implementation("androidx.lifecycle:lifecycle-runtime-ktx:$lifecycleVersion")
+        implementation("androidx.lifecycle:lifecycle-livedata-ktx:$lifecycleVersion")
 
         // ViewModel
         implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:$lifecycleVersion")

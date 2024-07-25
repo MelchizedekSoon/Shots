@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
+import androidx.room.Upsert
 
 @Dao
 interface SentLikeDao {
@@ -22,12 +23,14 @@ interface SentLikeDao {
     fun findById(sentLikeIds: String): SentLike
 
     //This allows for you to add multiple bookmarks but manually one by one
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun insert(vararg sentLikes: SentLike)
+//    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
+    fun upsert(vararg sentLikes: SentLike)
 
     //This allows you to add multiple bookmarks by way of list
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun insertAll(sentLikes: List<SentLike>)
+//    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
+    fun upsertAll(sentLikes: List<SentLike>)
 
     @Delete
     fun delete(sentLike: SentLike)

@@ -57,7 +57,6 @@ import androidx.navigation.NavController
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.example.shots.FirebaseModule
 import com.example.shots.ViewModelModule
-import com.example.shots.data.User
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -67,7 +66,7 @@ import kotlinx.coroutines.withContext
 fun SignupAboutMeScreen(
     navController: NavController,
     signupViewModel: SignupViewModel,
-    usersViewModel: UsersViewModel,
+    userViewModel: UserViewModel,
     dataStore: DataStore<Preferences>
 ) {
     val firebaseAuth = FirebaseModule.provideFirebaseAuth()
@@ -75,8 +74,6 @@ fun SignupAboutMeScreen(
     val firebaseStorage = FirebaseModule.provideStorage()
     val firebaseRepository =
         FirebaseModule.provideFirebaseRepository(firebaseAuth, firestore, firebaseStorage)
-    val editProfileViewModel =
-        ViewModelModule.provideEditProfileViewModel(firebaseRepository, firebaseAuth)
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var isFocused by remember { mutableStateOf(false) }
@@ -93,7 +90,7 @@ fun SignupAboutMeScreen(
     var mediaEightState by remember { mutableStateOf("") }
     var mediaNineState by remember { mutableStateOf("") }
 
-    var user by remember { mutableStateOf(usersViewModel.getUser()) }
+    var user by remember { mutableStateOf(userViewModel.getUser()) }
 
     val showSnackbar: () -> Unit = {
         scope.launch {
@@ -257,7 +254,7 @@ fun SignupAboutMeScreen(
                                         val userData: MutableMap<String, Any> = mutableMapOf()
                                         val mediaItems: MutableMap<String, Uri> = mutableMapOf()
                                         userData["aboutMe"] = updatedExistingUser.aboutMe ?: ""
-                                        usersViewModel.saveUserDataToFirebase(
+                                        userViewModel.saveUserDataToFirebase(
                                             userId ?: "", userData,
                                             mediaItems, context
                                         ) {

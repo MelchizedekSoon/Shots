@@ -55,7 +55,7 @@ import java.util.Calendar
 fun SignupAgeScreen(
     navController: NavController,
     signupViewModel: SignupViewModel,
-    usersViewModel: UsersViewModel,
+    userViewModel: UserViewModel,
     dataStore: DataStore<Preferences>
 ) {
     val context = LocalContext.current
@@ -147,6 +147,7 @@ fun SignupAgeScreen(
 
 
                 Text("Selected: ${selectedDate?.format(DateTimeFormatter.ISO_LOCAL_DATE) ?: "No selection"}")
+
                 Spacer(modifier = Modifier.height(32.dp))
                 Button(
                     shape = RoundedCornerShape(0.dp),
@@ -179,7 +180,7 @@ fun SignupAgeScreen(
                                         .toEpochMilli()
                                 scope.launch {
                                     withContext(Dispatchers.IO) {
-                                        val existingUser = usersViewModel.getUser()
+                                        val existingUser = userViewModel.getUser()
                                         val updatedExistingUser =
                                             existingUser?.copy(
                                                 birthday = System.currentTimeMillis()
@@ -190,7 +191,7 @@ fun SignupAgeScreen(
                                             val mediaItems: MutableMap<String, Uri> = mutableMapOf()
                                             val birthday = updatedExistingUser.birthday ?: 0
                                             userData["birthday"] = birthday
-                                            usersViewModel.saveUserDataToFirebase(
+                                            userViewModel.saveUserDataToFirebase(
                                                 userId, userData,
                                                 mediaItems, context
                                             ) {

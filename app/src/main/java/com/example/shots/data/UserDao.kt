@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
+import androidx.room.Upsert
 
 @Dao
 interface UserDao {
@@ -25,12 +26,14 @@ interface UserDao {
     fun findById(userId: String): User
 
     //This allows for you to add multiple users but manually one by one
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun insert(vararg users: User)
+    @Upsert
+//    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun upsert(vararg users: User)
 
     //This allows you to add multiple users by way of list
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun insertAll(users: List<User>)
+    @Upsert
+//    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun upsertAll(users: List<User>)
 
     @Update
     fun update(user: User)

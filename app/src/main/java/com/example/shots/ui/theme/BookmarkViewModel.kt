@@ -6,29 +6,58 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.shots.RoomModule
-import com.example.shots.ViewModelModule
-import com.example.shots.data.AppDatabase
 import com.example.shots.data.Bookmark
+import com.example.shots.data.BookmarkRepository
 import com.example.shots.data.FirebaseRepository
-import com.google.firebase.auth.FirebaseAuth
+import com.example.shots.data.UserRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import javax.inject.Inject
+
+
+data class BookmarkUiState(
+    val bookmarks: List<String> = emptyList(),
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null
+)
+
+
+//sealed interface UsersUiState {
+//    object Loading : UsersUiState
+//    data class Success(val users: List<User>) : UsersUiState
+//
+////    data class Error(val errorMessage: ErrorMessage) : UsersUiState
+//
+//    data class Error(val errorMessage: String) : UsersUiState
+//
+//}
 
 @HiltViewModel
 class BookmarkViewModel @Inject constructor(
     private val firebaseRepository: FirebaseRepository,
-    private val firebaseAuth: FirebaseAuth,
-    private val appDatabase: AppDatabase,
+    private val bookmarkRepository: BookmarkRepository,
+    private val userRepository: UserRepository,
+    private val dispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
-    private val usersViewModel =
-        ViewModelModule.provideUsersViewModel(firebaseRepository, firebaseAuth, appDatabase)
-    private val userDao = RoomModule.provideUserDao(appDatabase)
-    val bookmarkDao = RoomModule.provideBookmarkDao(appDatabase)
+    private val _uiState = MutableStateFlow(BookmarkUiState())
+    val uiState: StateFlow<BookmarkUiState> = _uiState.asStateFlow()
+
+    init {
+        try {
+            loadBookmarks()
+        } catch (npe: NullPointerException) {
+            Log.d("BookmarkViewModel", "bookmarks: $npe")
+        }
+    }
+
+//    private val userDao = RoomModule.provideUserDao(appDatabase)
+//    val bookmarkDao = RoomModule.provideBookmarkDao(appDatabase)
 
 
 //    suspend fun fetchListOfBookmarksFromRepo(bookmarkId: String) {
@@ -43,51 +72,85 @@ class BookmarkViewModel @Inject constructor(
 //        bookmarkDao.insert(bookmarks)
 //    }
 
-    suspend fun fetchBookmarkFromRoom(bookmarkId: String): Bookmark {
-        return withContext(Dispatchers.IO) {
+
+    fun loadBookmarks() {
+        viewModelScope.launch(dispatcher) {
             try {
-                val bookmark = bookmarkDao.findById(bookmarkId)
-                if (bookmark != null) {
-                    Log.d("bookmarkViewModel", "fetch returns $bookmark")
-                    bookmark
-                } else {
-                    // Handle case when bookmark is null in the database
-                    val emptyBookmark = Bookmark(bookmarkId, mutableListOf())
-                    emptyBookmark
+                bookmarkRepository.fetchUpdatedBookmarks().collect { returnedBookmarks ->
+                    Log.d(
+                        "BookmarkViewModel",
+                        "inside loadBookmarks where the returnedBookmarks = $returnedBookmarks"
+                    )
+                    _uiState.value = BookmarkUiState().copy(bookmarks = returnedBookmarks)
                 }
-            } catch (npe: NullPointerException) {
-                try {
-                    val bookmarkList = getBookmarksFromFirebase(bookmarkId)
-                    if (bookmarkList.isNotEmpty()) {
-                        Bookmark(bookmarkId, bookmarkList.toMutableList())
-                    } else {
-                        // Handle case when no data is available from Firebase
-                        // For example, you can return the existing bookmark object without modification
-                        val bookmark = Bookmark(bookmarkId, mutableListOf())
-                        bookmark
-                    }
-                } catch (npe: NullPointerException) {
-                    val bookmark = Bookmark(bookmarkId, mutableListOf())
-                    bookmark
-                }
+            } catch (e: Exception) {
+                Log.d("BookmarkViewModel", "Error: ${e.message}")
+                _uiState.value =
+                    BookmarkUiState().copy(errorMessage = e.message ?: "Unknown error")
             }
         }
     }
 
-    fun storeBookmarkInRoom(userId: String) {
+    fun fetchBookmarkObject(): Bookmark {
+        return bookmarkRepository.getBookmark(bookmarkRepository.getYourUserId())
+    }
+
+    fun fetchBookmarks(): Flow<List<String>> {
+        return bookmarkRepository.fetchBookmarks()
+    }
+
+    fun fetchUpdatedBookmarks(): Flow<List<String>> {
+        return bookmarkRepository.fetchUpdatedBookmarks()
+    }
+
+
+//    suspend fun fetchBookmarkFromRoom(bookmarkId: String): Bookmark {
+//        return withContext(dispatcher) {
+//            try {
+//                val bookmark = bookmarkDao.findById(bookmarkId)
+//                if (bookmark != null) {
+//                    Log.d("bookmarkViewModel", "fetch returns $bookmark")
+//                    bookmark
+//                } else {
+//                    // Handle case when bookmark is null in the database
+//                    val emptyBookmark = Bookmark(bookmarkId, mutableListOf())
+//                    emptyBookmark
+//                }
+//            } catch (npe: NullPointerException) {
+//                try {
+//                    val bookmarkList = getBookmarksFromFirebase(bookmarkId)
+//                    if (bookmarkList.isNotEmpty()) {
+//                        Bookmark(bookmarkId, bookmarkList.toMutableList())
+//                    } else {
+//                        // Handle case when no data is available from Firebase
+//                        // For example, you can return the existing bookmark object without modification
+//                        val bookmark = Bookmark(bookmarkId, mutableListOf())
+//                        bookmark
+//                    }
+//                } catch (npe: NullPointerException) {
+//                    val bookmark = Bookmark(bookmarkId, mutableListOf())
+//                    bookmark
+//                }
+//            }
+//        }
+//    }
+
+
+    fun storeBookmark(userId: String) {
         viewModelScope.launch {
-            withContext(Dispatchers.IO) {
-                val bookmarkList = getBookmarksFromFirebase(userId)
-                Log.d("BookmarkViewModel", "bookmarkList is $bookmarkList")
-                try {
-                    val bookmark = Bookmark(userId, bookmarkList.toMutableList())
-                    Log.d("BookmarkViewModel", "bookmark is $bookmark")
-                    bookmarkDao.update(bookmark)
-                } catch (npe: NullPointerException) {
-                    val bookmark = Bookmark(userId, bookmarkList.toMutableList())
-                    bookmarkDao.insert(bookmark)
-                }
-            }
+            bookmarkRepository.storeBookmark(userId)
+        }
+    }
+
+    fun storeBookmarkObject(bookmark: Bookmark) {
+        viewModelScope.launch {
+            bookmarkRepository.storeBookmarkObject(bookmark)
+        }
+    }
+
+    fun storeBookmarkInRoom(bookmark: Bookmark) {
+        viewModelScope.launch(dispatcher) {
+            bookmarkRepository.storeBookmarkObject(bookmark)
         }
     }
 
@@ -97,9 +160,14 @@ class BookmarkViewModel @Inject constructor(
         mediaItems: MutableMap<String, Uri>,
         context: Context
     ) {
-        viewModelScope.launch {
+        viewModelScope.launch(dispatcher) {
             val success =
-                firebaseRepository.writeUserDataToFirebase(userId, userData, mediaItems, context)
+                firebaseRepository.writeUserDataToFirebase(
+                    userId,
+                    userData,
+                    mediaItems,
+                    context
+                )
             if (success) {
                 Log.d(
                     "BookmarkViewModel",
@@ -121,8 +189,7 @@ class BookmarkViewModel @Inject constructor(
     ): Boolean {
         val success = firebaseRepository.writeBookmarksToFirebase(bookmarkId, bookmarkData)
         if (success) {
-            val yourUserId = firebaseAuth.currentUser?.displayName ?: ""
-            val receivingUser = usersViewModel.fetchUserFromRoom(bookmarkId ?: "")
+            val receivingUser = userRepository.getUser(bookmarkId)
 
             val userData: MutableMap<String, Any> = mutableMapOf()
             val mediaItems: MutableMap<String, Uri> = mutableMapOf()
@@ -131,9 +198,9 @@ class BookmarkViewModel @Inject constructor(
 
             userData["timesBookmarkedCount"] = receivingUser.timesBookmarkedCount ?: 0
 
-            usersViewModel.saveUserDataToFirebase(bookmarkId, userData, mediaItems, context) {
-                usersViewModel.storeUserInRoom(yourUserId)
-            }
+//            userViewModel.saveUserDataToFirebase(bookmarkId, userData, mediaItems, context) {
+//                userViewModel.storeUserInRoom(yourUserId)
+//            }
 
             Log.d(TAG, "Bookmark added!")
         } else {
@@ -148,8 +215,7 @@ class BookmarkViewModel @Inject constructor(
     ): Boolean {
         val success = firebaseRepository.deleteBookmarkFromFirebase(bookmarkId)
         if (success) {
-            val yourUserId = firebaseAuth.currentUser?.displayName ?: ""
-            val receivingUser = usersViewModel.fetchUserFromRoom(bookmarkId ?: "")
+            val receivingUser = userRepository.getUser(bookmarkId)
 
             val userData: MutableMap<String, Any> = mutableMapOf()
             val mediaItems: MutableMap<String, Uri> = mutableMapOf()
@@ -162,15 +228,19 @@ class BookmarkViewModel @Inject constructor(
 
             userData["timesBookmarkedCount"] = receivingUser.timesBookmarkedCount ?: 0
 
-            usersViewModel.saveUserDataToFirebase(bookmarkId, userData, mediaItems, context) {
-                usersViewModel.storeUserInRoom(yourUserId)
-            }
+//            userViewModel.saveUserDataToFirebase(bookmarkId, userData, mediaItems, context) {
+//                userViewModel.storeUserInRoom(yourUserId)
+//            }
 
             Log.d(TAG, "Bookmark deleted!")
         } else {
             Log.d(TAG, "Bookmark failed to be deleted!")
         }
         return success
+    }
+
+    fun getBookmarks(): Flow<List<String>> {
+        return bookmarkRepository.getBookmarks()
     }
 
     suspend fun getBookmarksFromFirebase(bookmarkId: String): List<String> {
@@ -181,4 +251,27 @@ class BookmarkViewModel @Inject constructor(
     fun convertBookmarksToList(bookmarks: String): List<String> {
         return bookmarks.split(",")
     }
+
+    fun saveAndStoreBookmark(
+        bookmarkId: String,
+        bookmarkData: MutableMap<String, Any>
+    ) {
+        viewModelScope.launch(dispatcher) {
+            Log.d("BookmarkViewModel", "inside save and store where bookmarkId is $bookmarkId")
+            Log.d(
+                "BookmarkViewModel",
+                "inside save and store where bookmarkData is $bookmarkData"
+            )
+            bookmarkRepository.saveAndStoreBookmark(bookmarkId, bookmarkData)
+            loadBookmarks()
+        }
+    }
+
+    fun removeBookmark(bookmarkId: String) {
+        viewModelScope.launch(dispatcher) {
+            bookmarkRepository.removeBookmark(bookmarkId)
+            loadBookmarks()
+        }
+    }
+
 }

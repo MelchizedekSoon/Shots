@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
+import androidx.room.Upsert
 
 @Dao
 interface BlockedUserDao {
@@ -22,12 +23,14 @@ interface BlockedUserDao {
     fun findById(blockedUserId: String): BlockedUser
 
     //This allows for you to add multiple blockedUsers but manually one by one
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun insert(vararg blockedUser: BlockedUser)
+//    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
+    fun upsert(vararg blockedUser: BlockedUser)
 
     //This allows you to add multiple blockedUsers by way of list
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun insertAll(blockedUsers: List<BlockedUser>)
+//    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
+    fun upsertAll(blockedUsers: List<BlockedUser>)
 
     @Delete
     fun delete(blockedUser: BlockedUser)

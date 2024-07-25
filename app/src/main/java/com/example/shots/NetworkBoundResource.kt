@@ -7,6 +7,7 @@ import android.os.Build
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import com.example.shots.data.User
+import com.example.shots.ui.theme.UserViewModel
 import com.google.gson.Gson
 import com.onesignal.OneSignal
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -16,16 +17,16 @@ import okhttp3.RequestBody.Companion.toRequestBody
 
 class NetworkBoundResource() {
 
-    fun createUser(userId: String?) {
+    fun createUser(userViewModel: UserViewModel) {
 
-        OneSignal.login(userId ?: "")
+        OneSignal.login(userViewModel.getYourUserId() ?: "")
 
         val okHttpClient = OkHttpClient()
 
         val mediaType = "application/json".toMediaTypeOrNull()
 
         val body =
-            """"{"identity":{"external_id":"${userId ?: ""}"}{"subscriptions":[{"type":"AndroidPush","token":"${userId ?: ""}",
+            """"{"identity":{"external_id":"${userViewModel.getYourUserId() ?: ""}"}{"subscriptions":[{"type":"AndroidPush","token":"${userViewModel.getYourUserId() ?: ""}",
                 |"device_model":"${Build.MODEL}", 
                 |"sdk":"${Build.VERSION.SDK_INT}"}]}""".trimMargin().toRequestBody(
                 mediaType
@@ -156,9 +157,13 @@ class NetworkBoundResource() {
 
     fun requestForShotNotification(context: Context, userId: String?) {
 
+
         val oneSignalId = OneSignal.User.onesignalId
-        val externalId = userId ?: "" // You will supply the external user id to the OneSignal SDK
-        OneSignal.login(externalId)
+//        val externalId = "123456789" // You will supply the external user id to the OneSignal SDK
+//        OneSignal.login(externalId)
+        val externalId = userId
+
+        Log.d("NetworkBoundResource", "userId = $externalId")
 
         val okHttpclient = OkHttpClient()
 

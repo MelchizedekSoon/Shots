@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
+import androidx.room.Upsert
 
 @Dao
 interface BookmarkDao {
@@ -22,12 +23,14 @@ interface BookmarkDao {
     fun findById(bookmarkId: String): Bookmark
 
     //This allows for you to add multiple bookmarks but manually one by one
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun insert(vararg bookmarks: Bookmark)
+    @Upsert
+//    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun upsert(vararg bookmarks: Bookmark)
 
     //This allows you to add multiple bookmarks by way of list
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun insertAll(bookmarks: List<Bookmark>)
+//    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
+    fun upsertAll(bookmarks: List<Bookmark>)
 
     @Delete
     fun delete(bookmark: Bookmark)

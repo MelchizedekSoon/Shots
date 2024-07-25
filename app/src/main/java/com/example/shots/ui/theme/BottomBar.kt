@@ -22,9 +22,11 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.shots.R
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
-fun BottomBar(navController: NavController, usersViewModel: UsersViewModel) {
+fun BottomBar(navController: NavController, userViewModel: UserViewModel) {
     var newShotsCount by remember { mutableStateOf(0) }
     var newMessagesCount by remember { mutableStateOf(0) }
 
@@ -36,9 +38,11 @@ fun BottomBar(navController: NavController, usersViewModel: UsersViewModel) {
     val selectedItem by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(Unit) {
-        val user = usersViewModel.getUser()
-        newShotsCount = user?.newShotsCount ?: 0
-        newMessagesCount = user?.newMessagesCount ?: 0
+        withContext(Dispatchers.IO) {
+            val user = userViewModel.fetchUser()
+            newShotsCount = user?.newShotsCount ?: 0
+            newMessagesCount = user?.newMessagesCount ?: 0
+        }
     }
 
     BottomNavigation(

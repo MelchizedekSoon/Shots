@@ -45,6 +45,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.navigation.NavController
 import com.example.shots.FirebaseModule
 import com.example.shots.NetworkBoundResource
+import com.example.shots.data.User
 import com.google.firebase.auth.UserProfileChangeRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -55,20 +56,17 @@ import java.util.Locale
 fun SignupUsernameScreen(
     navController: NavController,
     signupViewModel: SignupViewModel,
-    usersViewModel: UsersViewModel,
+    userViewModel: UserViewModel,
     dataStore: DataStore<Preferences>
 ) {
     val firebaseAuth = FirebaseModule.provideFirebaseAuth()
-    val firestore = FirebaseModule.provideFirestore()
-    val firebaseStorage = FirebaseModule.provideStorage()
-    val firebaseRepository =
-        FirebaseModule.provideFirebaseRepository(firebaseAuth, firestore, firebaseStorage)
+
     Log.d(TAG, "The data ${signupViewModel.getSignUpUser()}")
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
-    val user by remember { mutableStateOf(usersViewModel.getUser()) }
+    var user: User? = null
 
     var usernameState by rememberSaveable {
         mutableStateOf(
@@ -94,11 +92,11 @@ fun SignupUsernameScreen(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        snackbarHost = { ->
+        snackbarHost = {
             SnackbarHost(
                 hostState = snackbarHostState
             )
-        }) { it ->
+        }) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -122,7 +120,7 @@ fun SignupUsernameScreen(
 
                             userData["userName"] = existingUser?.userName ?: ""
 
-                            usersViewModel.saveUserDataToFirebase(
+                            userViewModel.saveUserDataToFirebase(
                                 existingUser?.id ?: "",
                                 userData,
                                 mediaItems,
@@ -174,7 +172,6 @@ fun SignupUsernameScreen(
                         )
                     }
                 )
-                val context = LocalContext.current
                 var validUsername by remember { mutableStateOf(false) }
                 LaunchedEffect(usernameState) {
                     if (usernameState != "") {
@@ -216,7 +213,7 @@ fun SignupUsernameScreen(
                                 )
                                 scope.launch {
                                     withContext(Dispatchers.IO) {
-                                        val userId = usernameState
+                                        var userId = usernameState
                                         val userData: MutableMap<String, Any> = mutableMapOf()
                                         val mediaItems: MutableMap<String, Uri> = mutableMapOf()
                                         userData["id"] = userId
@@ -227,12 +224,12 @@ fun SignupUsernameScreen(
                                                 .setDisplayName(usernameState)
                                                 .build()
                                         )
-                                        NetworkBoundResource().createUser(userId)
-                                        usersViewModel.storeUserInRoom(userId)
-                                        Log.d("SignupUsernameScreen", "Username: $userId")
-                                        usersViewModel.saveUserDataToFirebase(
-                                            userId, userData,
-                                            mediaItems, context
+                                        NetworkBoundResource().createUser(userViewModel)
+                                        userViewModel.saveAndStoreData(
+                                            userId,
+                                            userData,
+                                            mediaItems,
+                                            context
                                         ) {
                                             navController.navigate("signupAge")
                                         }
@@ -251,7 +248,7 @@ fun SignupUsernameScreen(
                     Text("Add username", fontSize = 16.sp)
                 }
 //                LaunchedEffect(usernameState) {
-//                    usersViewModel.updateUserField { currentUser ->
+//                    userViewModel.updateUserField { currentUser ->
 //                        currentUser.copy(userName = usernameState)
 //                    }
 //                }

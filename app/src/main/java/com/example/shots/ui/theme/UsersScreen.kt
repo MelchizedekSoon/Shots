@@ -5,7 +5,6 @@ import android.content.pm.PackageManager
 import android.location.Location
 import android.net.Uri
 import android.util.Log
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.tween
@@ -43,6 +42,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -78,8 +78,6 @@ import com.example.shots.FirebaseModule
 import com.example.shots.ProfileUserCardDisplay
 import com.example.shots.R
 import com.example.shots.RoomModule
-import com.example.shots.ViewModelModule
-import com.example.shots.data.Bookmark
 import com.example.shots.data.TypeOfMedia
 import com.example.shots.data.User
 import com.google.accompanist.pager.ExperimentalPagerApi
@@ -99,7 +97,8 @@ import java.util.Calendar
 fun UsersScreen(
     navController: NavHostController,
     signupViewModel: SignupViewModel,
-    usersViewModel: UsersViewModel,
+    editProfileViewModel: EditProfileViewModel,
+    userViewModel: UserViewModel,
     locationViewModel: LocationViewModel,
     bookmarkViewModel: BookmarkViewModel,
     receivedLikeViewModel: ReceivedLikeViewModel,
@@ -110,18 +109,20 @@ fun UsersScreen(
     userWhoBlockedYouViewModel: UserWhoBlockedYouViewModel,
     dataStore: DataStore<Preferences>
 ) {
+    userViewModel.loadYourUser()
+    userViewModel.loadUsers()
+    bookmarkViewModel.loadBookmarks()
+    sentLikeViewModel.loadSentLikes()
+
+    val editProfileUiState by editProfileViewModel.uiState.collectAsState()
+
+    Log.d("LoginScreen", "editProfileUiState.userName = ${editProfileUiState.userName}")
 
     val firebaseAuth = FirebaseModule.provideFirebaseAuth()
-    val firestore = FirebaseModule.provideFirestore()
-    val firebaseStorage = FirebaseModule.provideStorage()
-    val firebaseRepository =
-        FirebaseModule.provideFirebaseRepository(firebaseAuth, firestore, firebaseStorage)
-    val appDatabase = RoomModule.provideAppDatabase(LocalContext.current)
-    val retrievedUser = remember { mutableStateOf<User?>(null) }
     val scope = rememberCoroutineScope()
     var currentCard by rememberSaveable { mutableIntStateOf(0) }
     val snackbarHostState = remember { SnackbarHostState() }
-    val snackbarMessage by remember {
+    var snackbarMessage by remember {
         mutableStateOf("")
     }
     val showSnackbar: () -> Unit = {
@@ -130,11 +131,11 @@ fun UsersScreen(
         }
     }
 
-    val userId = firebaseAuth.currentUser?.displayName ?: ""
+    var userId = firebaseAuth.currentUser?.displayName ?: ""
     val context = LocalContext.current
 
-    var newLikesCount by remember { mutableStateOf(0) }
-    var timesBookmarkedCount by remember { mutableStateOf(0) }
+//    var newLikesCount by remember { mutableIntStateOf(0) }
+    var timesBookmarkedCount by remember { mutableIntStateOf(0) }
 
     var locationWasGranted by remember { mutableStateOf(false) }
 
@@ -153,21 +154,22 @@ fun UsersScreen(
         LocationServices.getFusedLocationProviderClient(context)
     }
 
+    val user by userViewModel.user.collectAsState()
+
+    val usersUiState by userViewModel.uiState.collectAsState()
 
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
 
-            val user = usersViewModel.getUser()
-
-            newLikesCount = user?.newLikesCount ?: 0
+//            newLikesCount = user?.newLikesCount ?: 0
 
             timesBookmarkedCount = user?.timesBookmarkedCount ?: 0
 
             dataStore.edit { preferences ->
                 // this needs adjustment and logic figuring
 //                preferences[intPreferencesKey("currentCard")] = 0
-                preferences[intPreferencesKey("currentScreen")] = 13
+                preferences[intPreferencesKey("currentScreen")] = 0
                 preferences[booleanPreferencesKey("hasSignedUp")] = true
             }
 
@@ -176,6 +178,8 @@ fun UsersScreen(
             }
         }
     }
+
+    Log.d("UsersScreen", "usersUiState users = ${usersUiState.users}")
 
     Scaffold(
         topBar = {
@@ -205,12 +209,12 @@ fun UsersScreen(
 //                    }
 //                },
                 actions = {
-                    if (newLikesCount > 0) {
+                    if ((user?.newLikesCount ?: 0) > 0) {
                         BadgedBox(badge = {
                             Badge(
                                 containerColor = Color.Red,
                                 contentColor = Color.White
-                            ) { Text("$newLikesCount") }
+                            ) { Text("${user?.newLikesCount ?: 0}") }
                         }) {
                             Icon(
                                 painter = painterResource(id = R.drawable.heart_alt_svgrepo_com),
@@ -271,18 +275,16 @@ fun UsersScreen(
 
         },
         bottomBar = {
-            BottomBar(navController = navController, usersViewModel)
+            BottomBar(navController = navController, userViewModel)
         },
         content = {
-            Modifier.padding(it)
 
             when {
                 ContextCompat.checkSelfPermission(
                     context,
                     Manifest.permission.ACCESS_FINE_LOCATION
                 ) == PackageManager.PERMISSION_GRANTED -> {
-                    val user = usersViewModel.getUser()
-                    if (user?.latitude == 0.0 && user.longitude == 0.0) {
+                    if (user?.latitude == 0.0 && user?.longitude == 0.0) {
                         fusedLocationClient.getCurrentLocation(
                             Priority.PRIORITY_HIGH_ACCURACY,
                             object : CancellationToken() {
@@ -292,51 +294,52 @@ fun UsersScreen(
                                 override fun isCancellationRequested() = false
                             })
                             .addOnSuccessListener { location: Location? ->
-                                if (location == null)
+                                if (location == null) {
+                                    Log.d(
+                                        "UsersScreen",
+                                        "location.latitude = ${location?.latitude}"
+                                    )
+                                    Log.d(
+                                        "UsersScreen",
+                                        "location.longitude = ${location?.longitude}"
+                                    )
                                     fusedLocationClient.lastLocation
-                                        .addOnSuccessListener { location: Location? ->
+                                        .addOnSuccessListener { returnedLocation: Location? ->
                                             // Got last known location. In some rare situations this can be null.
-                                            if (location != null) {
-                                                val existingUser = usersViewModel.getUser()
-
-                                                var updatedExistingUser =
-                                                    existingUser?.copy(latitude = location.latitude)
-                                                        ?.copy(longitude = location.longitude)
-
+                                            if (returnedLocation != null) {
                                                 val userData: MutableMap<String, Any> =
                                                     mutableMapOf()
                                                 val mediaItems: MutableMap<String, Uri> =
                                                     mutableMapOf()
 
-                                                if (updatedExistingUser != null) {
-                                                    userData["latitude"] =
-                                                        updatedExistingUser.latitude ?: 0
-                                                    userData["longitude"] =
-                                                        updatedExistingUser.longitude ?: 0
-                                                    usersViewModel.saveUserDataToFirebase(
-                                                        userId, userData,
-                                                        mediaItems, context
-                                                    ) {
-
+                                                userData["latitude"] =
+                                                    returnedLocation.latitude
+                                                userData["longitude"] =
+                                                    returnedLocation.longitude
+                                                userViewModel.saveAndStoreData(
+                                                    userId, userData,
+                                                    mediaItems, context
+                                                ) {}
+                                            } else {
+                                                scope.launch {
+                                                    withContext(Dispatchers.IO) {
+                                                        snackbarMessage = "Cannot get location."
+                                                        snackbarHostState.showSnackbar(
+                                                            snackbarMessage
+                                                        )
                                                     }
                                                 }
-                                            } else {
-                                                Toast.makeText(
-                                                    context,
-                                                    "Cannot get location.",
-                                                    Toast.LENGTH_SHORT
-                                                ).show()
                                             }
                                         }
-                                else {
-//                                        val lat = location.latitude
-//                                        val lon = location.longitude
-
-                                    locationViewModel.latitude = location.latitude
-                                    locationViewModel.longitude = location.longitude
-                                    locationViewModel.saveLocationToFirebase(
+                                } else {
+                                    Log.d("UsersScreen", "location.latitude = ${location.latitude}")
+                                    Log.d(
+                                        "UsersScreen",
+                                        "location.longitude = ${location.longitude}"
+                                    )
+                                    locationViewModel.saveAndStoreLocation(
                                         userId, location.latitude,
-                                        location.longitude, context, usersViewModel
+                                        location.longitude, context, userViewModel
                                     )
                                 }
                             }
@@ -346,7 +349,7 @@ fun UsersScreen(
                     // You can use the API that requires the permission.
                     AnchoredDraggableBox(
                         navController,
-                        usersViewModel,
+                        userViewModel,
                         locationViewModel,
                         bookmarkViewModel,
                         sentLikeViewModel,
@@ -358,42 +361,19 @@ fun UsersScreen(
                         dataStore,
                         showSnackbar
                     )
+
                 }
 
-//                ActivityCompat.shouldShowRequestPermissionRationale(
-//                    context as AppCompatActivity, Manifest.permission.ACCESS_FINE_LOCATION
-//                ) -> {
-//                    // In an educational UI, explain to the user why your app requires this
-//                    // permission for a specific feature to behave as expected, and what
-//                    // features are disabled if it's declined. In this UI, include a
-//                    // "cancel" or "no thanks" button that lets the user continue
-//                    // using your app without granting the permission.
-//                    LocationDialog { wasGranted ->
-//                        if (wasGranted) {
-//                            locationPermissionLauncher.launch(
-//                                Manifest.permission.ACCESS_FINE_LOCATION
-//                            )
-//                        } else {
-//                            locationWasGranted = wasGranted
-//                        }
-//                    }
-//                    if (!locationWasGranted) {
-//                        Card(modifier = Modifier.fillMaxSize()) {
-//                            Text(text = "No cards can be displayed")
-//                        }
-//                    }
-//                }
-
                 else -> {
-                    // You can directly ask for the permission.
-                    // The registered ActivityResultCallback gets the result of this request.
+
                     locationPermissionLauncher.launch(
                         Manifest.permission.ACCESS_FINE_LOCATION
                     )
+
                     if (locationWasGranted) {
                         AnchoredDraggableBox(
                             navController,
-                            usersViewModel,
+                            userViewModel,
                             locationViewModel,
                             bookmarkViewModel,
                             sentLikeViewModel,
@@ -406,24 +386,6 @@ fun UsersScreen(
                             showSnackbar
                         )
                     } else {
-//                        Box(modifier = Modifier
-//                            .fillMaxSize()
-//                            .background(Color.White)
-//                            .clickable {
-//                            }) {
-//                            Card(
-//                                modifier = Modifier
-//                                    .fillMaxSize()
-//                                    .background(Color.White)
-//                            ) {
-//                                Text(
-//                                    text = "No user cards displayed. " +
-//                                            "Must grant location access first.",
-//                                    textAlign = TextAlign.Center
-//                                )
-//                            }
-//                        }
-
                         Box(
                             modifier = Modifier
                                 .padding(150.dp)
@@ -453,6 +415,9 @@ fun UsersScreen(
                 }
 
             }
+
+            Modifier.padding(it)
+
         }
     )
 }
@@ -510,7 +475,7 @@ fun LocationDialog(
 @Composable
 fun AnchoredDraggableBox(
     navController: NavHostController,
-    usersViewModel: UsersViewModel,
+    userViewModel: UserViewModel,
     locationViewModel: LocationViewModel,
     bookmarkViewModel: BookmarkViewModel,
     sentLikeViewModel: SentLikeViewModel,
@@ -528,19 +493,26 @@ fun AnchoredDraggableBox(
     val firebaseRepository =
         FirebaseModule.provideFirebaseRepository(firebaseAuth, firestore, firebaseStorage)
     val appDatabase = RoomModule.provideAppDatabase(LocalContext.current)
-    val editProfileViewModel =
-        ViewModelModule.provideEditProfileViewModel(firebaseRepository, firebaseAuth)
-    val userDao = RoomModule.provideUserDao(appDatabase)
-    val bookmarkDao = RoomModule.provideBookmarkDao(appDatabase)
-    val sentLikeDao = RoomModule.provideSentLikeDao(appDatabase)
-    val receivedLikeDao = RoomModule.provideReceiveLikeDao(appDatabase)
-    val sentShotDao = RoomModule.provideSentShotDao(appDatabase)
-    val receivedShotDao = RoomModule.provideReceiveShotDao(appDatabase)
+
+
     val context = LocalContext.current
     var currentCard by rememberSaveable { mutableIntStateOf(0) }
     var isBookmarked by remember { mutableStateOf(false) }
-    var wasClicked by remember { mutableStateOf(false) }
     var user by remember { mutableStateOf<User?>(null) }
+
+    val userUiState = userViewModel.user.collectAsState()
+
+    val usersUiState = userViewModel.uiState.collectAsState()
+
+    val bookmarkUiState = bookmarkViewModel.uiState.collectAsState()
+
+    val userWhoBlockedYouUiState = userWhoBlockedYouViewModel.uiState.collectAsState()
+
+    val blockedUserUiState = blockedUserViewModel.uiState.collectAsState()
+
+    Log.d("UsersScreen", "user = ${userUiState.value?.id}")
+
+
 //    val cards: List<User> = listOf(
 //        User(
 //            "0",
@@ -568,114 +540,41 @@ fun AnchoredDraggableBox(
 //        )
 //        // Add more users as needed
 //    )
-    var cards by remember { mutableStateOf(usersViewModel.fetchAllNonBlockedUsersFromRoom()) }
+
+
     val scope = rememberCoroutineScope()
 
     val shuffleCards: () -> Unit = {
         scope.launch {
             withContext(Dispatchers.Default) {
-                val shuffledCards = cards.shuffled()
-                withContext(Dispatchers.Main) {
-                    cards = shuffledCards
-                }
+                usersUiState.value.users = usersUiState.value.users.shuffled()
             }
         }
     }
 
-    LaunchedEffect(Unit) {
-        scope.launch {
-            withContext(Dispatchers.IO) {
-                user = usersViewModel.getUser()
-
-
-//                val currentId = firebaseAuth.currentUser?.displayName ?: ""
-//                val blockedCards = blockedUserViewModel.getBlockedUsersFromFirebase(user?.id ?: "")
-//                val usersWhoBlockedYouCards = userWhoBlockedYouViewModel.getUserWhoBlockedYouFromFirebase(user?.id ?: "")
-
-//                cards = usersViewModel.fetchAllNonBlockedUsersFromRoom().reversed()
-
-                //the below is to be used if calling fetchAllUsersFromRoom()
-//                    .filter { user ->
-//                        !blockedCards.contains(user.id ?: "")
-//                    }
-//                    .filter { user ->
-//                        !usersWhoBlockedYouCards.contains(user.id ?: "")
-//                    }
-
-
-//                cards = cards.filter { card ->
-//                    card.id != currentId
+//    LaunchedEffect(Unit, usersUiState) {
+//        withContext(Dispatchers.IO) {
+//            when (usersUiState.value) {
+//                is UsersUiState.Success -> {
+////                    cards = (usersUiState.value as UsersUiState.Success).users
 //                }
-            }
-        }
-    }
-
-    user = usersViewModel.getUser()
-
-//    if (user?.displayName.isNullOrBlank() ||
-//        user?.mediaOne.isNullOrBlank() ||
-//        user?.mediaProfileVideo.isNullOrBlank() ||
-//        user?.gender == Gender.UNKNOWN
-//    ) {
-//        Toast.makeText(context, "Please complete all required fields first.", Toast.LENGTH_SHORT)
-//            .show()
+//
+//                is UsersUiState.Error -> TODO()
+//                UsersUiState.Loading -> TODO()
+//            }
+//
+//
+//        }
 //    }
 
-
-//    if (cards.isEmpty()) {
-//        // Content of the draggable component
-//        // Content for each page
-//        // This lambda will be called for each page index
-//        // You can provide different content for each page based on the index
-//
-//        Card(
-//            modifier = Modifier
-//                .fillMaxSize()
-//                .padding(8.dp)
-//                .clickable {
-//                },
-////            elevation = CardDefaults.cardElevation(
-////                defaultElevation = 8.dp
-////            )
-//        ) {
-//            Box {
-//                // Display card content
-//                Box(modifier = Modifier
-//                    .fillMaxSize()
-//                    .clickable {
-//                    }) {
-//                    Icon(
-//                        painterResource(id = R.drawable.groups_24px),
-//                        "No Groups Icon",
-//                        modifier = Modifier
-//                            .height(280.dp)
-//                            .width(280.dp)
-//                            .align(Alignment.TopCenter)
-//                            .padding(0.dp, 200.dp, 0.dp, 0.dp)
-//                    )
-//                    Text(
-//                        "No user cards are currently available",
-//                        fontSize = 24.sp,
-//                        textAlign = TextAlign.Center,
-//                        modifier = Modifier
-//                            .align(Alignment.Center)
-//                            .padding(8.dp, 80.dp, 8.dp, 0.dp)
-//                    )
-//                }
-//            }
-//        }
-//
-////        navController.navigate("users")
-//
-//
-//    } else {
     // Define the number of pages
     val pageCount = 5
 
 // Remember the pager state
     val pagerState = com.google.accompanist.pager.rememberPagerState(pageCount)
+
     val density = LocalDensity.current
-    // Content to display on each page
+
     AnchoredDraggableState(
         initialValue = 0,
         positionalThreshold = { totalDistance: Float -> totalDistance * 0.5f },
@@ -692,167 +591,23 @@ fun AnchoredDraggableBox(
         )
     }
 
+    val state = rememberPagerState(currentCard) {
+        usersUiState.value.users.size
+    }
 
-    val state = rememberPagerState(currentCard) { cards.size }
     VerticalPager(
         state,
         modifier = Modifier
             .fillMaxSize()
             .padding(top = 56.dp, bottom = 56.dp)
     ) {
-        var yourBookmarks: List<String> by remember { mutableStateOf(emptyList()) }
-        val currentUser = cards[it]
 
-        LaunchedEffect(Unit) {
-            withContext(Dispatchers.IO) {
-                yourBookmarks =
-                    bookmarkViewModel.fetchBookmarkFromRoom(user?.id ?: "").bookmarks
-            }
-        }
-
-//        LaunchedEffect(Unit) {
-//            scope.launch {
-//                withContext(Dispatchers.IO) {
-//                    val TAG = "LoginScreen"
-//                    val firebaseAuth = FirebaseModule.provideFirebaseAuth()
-//                    val userId = firebaseAuth.currentUser?.email ?: ""
-//                    user = usersViewModel.getUserDataFromRepo(userId)
-//                    usersViewModel.userDao.updateAll(usersViewModel.getUsersFromRepo())
-//                    Log.d(TAG, "User - $user")
-//                    Log.d(TAG, "UserId - $userId")
-////                    if (user != null) {
-////                        usersViewModel.userDao.update(user!!)
-////                    } else {
-////                        user = usersViewModel.getInitialUser()
-////                        user = user!!.copy(id = userId)
-////                        usersViewModel.userDao.update(user!!)
-////                    }
-////                    val bookmark = Bookmark(
-////                        userId,
-////                        bookmarkViewModel.getBookmarksFromFirebase(userId)
-////                            .toMutableList()
-////                    )
-////                    bookmarkDao.update(bookmark)
-////                    val sentLike = SentLike(
-////                        userId,
-////                        sentLikeViewModel.getSentLikesFromFirebase(userId)
-////                            .toMutableList()
-////                    )
-////                    sentLikeDao.update(sentLike)
-////                    val receivedLike = ReceivedLike(
-////                        userId,
-////                        receivedLikeViewModel.getReceivedLikesFromFirebase(userId)
-////                            .toMutableList()
-////                    )
-////                    receivedLikeDao.update(receivedLike)
-////                    val sentShot = SentShot(
-////                        userId,
-////                        sentShotViewModel.getSentShotsFromFirebase(userId)
-////                            .toMutableList()
-////                    )
-////                    sentShotDao.update(sentShot)
-////                    val receivedShot = ReceivedShot(
-////                        userId,
-////                        receivedShotViewModel.getReceivedShotsFromFirebase(userId)
-////                            .toMutableList()
-////                    )
-////                    receivedShotDao.update(receivedShot)
-//                }
-//            }
-//        }
-
-//        LaunchedEffect(Unit) {
-//            scope.launch {
-//                withContext(Dispatchers.IO) {
-        val userId = firebaseAuth.currentUser?.displayName ?: ""
-//                    Log.d(TAG, "user id - $userId - ${firebaseAuth.currentUser?.email}")
-//                    try {
-//                        val allBookmarks = bookmarkDao.getAll()
-//                        val retrievedBookmarks = bookmarkViewModel.getBookmarksFromFirebase(userId)
-//                        Log.d(TAG, "Retrieved bookmarks - $retrievedBookmarks")
-//
-//                        val bookmark = Bookmark(userId, retrievedBookmarks.toMutableList())
-//
-//                        val bookmarkIdToCheck = bookmark.bookmarkId
-//
-//                        val isBookmarkIdContained =
-//                            allBookmarks.any { it.bookmarkId == bookmarkIdToCheck }
-//
-//                        if (isBookmarkIdContained) {
-//                            // Bookmark ID is already present, perform update
-//                            bookmarkDao.update(bookmark)
-//                        } else {
-//                            // Bookmark ID is not present, perform insert
-//                            bookmarkDao.insert(bookmark)
-//                        }
-//        yourBookmarks = bookmarkViewModel.fetchBookmarkFromRoom()
-//                        Log.d(TAG, "Current bookmarks - $yourBookmarks")
-//                    } catch (npe: NullPointerException) {
-//                        Log.d(TAG, "No bookmarks yet")
-//                    }
-//
-//                    try {
-//                        val allSentLikes = sentLikeDao.getAll()
-//                        val retrievedSentLikes = sentLikeViewModel.getSentLikesFromFirebase(userId)
-//                        Log.d(TAG, "Retrieved bookmarks - $retrievedSentLikes")
-//
-//                        val sentLike = SentLike(userId, retrievedSentLikes.toMutableList())
-//
-//                        val sentLikeIdToCheck = sentLike.sentLikeId
-//
-//                        val isSentLikeIdContained =
-//                            allSentLikes.any { it.sentLikeId == sentLikeIdToCheck }
-//
-//                        if (isSentLikeIdContained) {
-//                            // sentLike ID is already present, perform update
-//                            sentLikeDao.update(sentLike)
-//                        } else {
-//                            // sentLike ID is not present, perform insert
-//                            sentLikeDao.insert(sentLike)
-//                        }
-////                        yourBookmarks = bookmarkDao.findById(userId).bookmarks
-////                        Log.d(TAG, "Current bookmarks - $yourBookmarks")
-//                    } catch (npe: NullPointerException) {
-//                        Log.d(TAG, "No sentLikes yet")
-//                    }
-//
-//                    try {
-//                        val allReceivedLikes = receivedLikeDao.getAll()
-//                        val retrievedReceivedLikes =
-//                            receivedLikeViewModel.getReceivedLikesFromFirebase(userId)
-//                        Log.d(TAG, "Retrieved receivedLikes - $retrievedReceivedLikes")
-//
-//                        val receivedLike =
-//                            ReceivedLike(userId, retrievedReceivedLikes.toMutableList())
-//
-//                        val receivedLikeIdToCheck = receivedLike.receivedLikeId
-//
-//                        val isReceivedLikeIdContained =
-//                            allReceivedLikes.any { it.receivedLikeId == receivedLikeIdToCheck }
-//
-//                        if (isReceivedLikeIdContained) {
-//                            // receivedLike ID is already present, perform update
-//                            receivedLikeDao.update(receivedLike)
-//                        } else {
-//                            // receivedLike ID is not present, perform insert
-//                            receivedLikeDao.insert(receivedLike)
-//                        }
-////                        yourBookmarks = bookmarkDao.findById(userId).bookmarks
-////                        Log.d(TAG, "Current bookmarks - $yourBookmarks")
-//                    } catch (npe: NullPointerException) {
-//                        Log.d(TAG, "No receivedLikes yet")
-//                    }
-//
-//                }
-//            }
-////
-//        }
-
+        val currentUser = usersUiState.value.users[it]
 
         val navToUserProfile: () -> Unit = {
             scope.launch {
                 withContext(Dispatchers.Main) {
-                    navController.navigate("userProfile/${cards[it].id}") {
+                    navController.navigate("userProfile/${currentUser.id}") {
 //                        launchSingleTop = true
 //                        popUpTo(navController.graph.startDestinationId) {
 //                            saveState = true
@@ -862,25 +617,6 @@ fun AnchoredDraggableBox(
             }
         }
 
-//        AnchoredDraggableState(
-//            initialValue = 0,
-//            positionalThreshold = { totalDistance: Float -> totalDistance * 0.5f },
-//            velocityThreshold = { with(density) { 100.dp.toPx() } },
-//            animationSpec = tween(),
-//        ).apply {
-//            updateAnchors(
-//                newAnchors = DraggableAnchors {
-//                    with(density) {
-//                        0 at 0.dp.toPx()
-//                        100 at 100.dp.toPx()
-//                    }
-//                }
-//            )
-//        }
-        // Content of the draggable component
-        // Content for each page
-        // This lambda will be called for each page index
-        // You can provide different content for each page based on the index
         Card(
             modifier = Modifier
                 .fillMaxSize()
@@ -976,7 +712,7 @@ fun AnchoredDraggableBox(
                         tint = Color.White
                     )
                     Icon(
-                        painter = if (yourBookmarks.contains(currentUser.id)) {
+                        painter = if (bookmarkUiState.value.bookmarks.contains(currentUser.id)) {
                             painterResource(id = R.drawable.baseline_bookmark_24)
                         } else {
                             painterResource(id = R.drawable.bookmark_24px)
@@ -988,98 +724,69 @@ fun AnchoredDraggableBox(
                             .height(40.dp)
                             .width(40.dp)
                             .clickable {
-                                scope.launch {
-                                    withContext(Dispatchers.IO) {
-                                        isBookmarked = !isBookmarked
-                                        wasClicked = true
-                                        val bookmarkData: MutableMap<String, Any> =
-                                            mutableMapOf()
-                                        Log.d("UsersScreen", "isBookmarked - $isBookmarked")
-                                        Log.d("UsersScreen", "wasClicked - $wasClicked")
-                                        bookmarkData["bookmark-${currentUser.id}"] =
-                                            currentUser.id
-                                        if (isBookmarked && wasClicked) {
-                                            if (!yourBookmarks.contains(currentUser.id)) {
-                                                if (bookmarkViewModel.saveBookmarkToFirebase(
-                                                        currentUser.id,
-                                                        bookmarkData, context
-                                                    )
-                                                ) {
-                                                    val bookmarks =
-                                                        bookmarkViewModel
-                                                            .getBookmarksFromFirebase(
-                                                                firebaseAuth.currentUser?.displayName
-                                                                    ?: ""
-                                                            )
+                                isBookmarked = !isBookmarked
 
-                                                    val bookmark =
-                                                        Bookmark(
-                                                            firebaseAuth.currentUser?.displayName
-                                                                ?: "",
-                                                            bookmarks.toMutableList()
-                                                        )
+                                if (bookmarkUiState.value.bookmarks.contains(currentUser.id)) {
 
-                                                    try {
-                                                        bookmarkDao.insert(bookmark)
-                                                    } catch (npe: java.lang.NullPointerException) {
-                                                        bookmarkDao.insert(bookmark)
-                                                    }
-                                                    yourBookmarks = bookmark.bookmarks
-                                                }
-                                            }
-                                            wasClicked = false
-                                        } else if (!isBookmarked && wasClicked) {
+                                    val userData: MutableMap<String, Any> =
+                                        mutableMapOf()
+                                    val mediaItems: MutableMap<String, Uri> =
+                                        mutableMapOf()
 
-                                            if (bookmarkViewModel.removeBookmarkFromFirebase(
-                                                    currentUser.id, context
-                                                )
-                                            ) {
-                                                val bookmarks =
-                                                    bookmarkViewModel
-                                                        .getBookmarksFromFirebase(
-                                                            firebaseAuth.currentUser?.displayName
-                                                                ?: ""
-                                                        )
+                                    bookmarkViewModel.removeBookmark(
+                                        currentUser.id ?: ""
+                                    )
 
-                                                val bookmark =
-                                                    Bookmark(
-                                                        firebaseAuth.currentUser?.displayName
-                                                            ?: "",
-                                                        bookmarks.toMutableList()
-                                                    )
-
-                                                try {
-                                                    bookmarkDao.insert(bookmark)
-                                                } catch (npe: java.lang.NullPointerException) {
-                                                    bookmarkDao.insert(bookmark)
-                                                }
-                                                yourBookmarks = bookmark.bookmarks
-                                            }
-
-                                            wasClicked = false
+                                    userData["timesBookmarkedCount"] =
+                                        if (currentUser.timesBookmarkedCount == 0) {
+                                            0
+                                        } else {
+                                            currentUser.timesBookmarkedCount?.minus(1)
+                                                ?: 0
                                         }
-//                                        val retrievedBookmarks: List<String> =
-//                                            bookmarkViewModel.getBookmarksFromFirebase(
-//                                                firebaseAuth.currentUser?.displayName ?: ""
-//                                            )
-//                                        Log.d(TAG, "The retrievedBookmarks - $retrievedBookmarks")
-//                                        val userId = firebaseAuth.currentUser?.displayName
-//                                        if (!userId.isNullOrBlank()) {
-//                                            var bookmark = bookmarkDao.findById(userId)
-//                                            if (bookmark != null) {
-//                                                bookmark =
-//                                                    bookmark.copy(bookmarks = retrievedBookmarks.toMutableList())
-//                                                bookmarkDao.update(bookmark)
-//                                            } else {
-//                                                val newBookmark =
-//                                                    Bookmark(
-//                                                        userId,
-//                                                        retrievedBookmarks.toMutableList()
-//                                                    )
-//                                                bookmarkDao.insert(newBookmark)
-//                                            }
-//                                        }
-                                    }
+
+                                    userViewModel.saveAndStoreData(
+                                        currentUser.id ?: "",
+                                        userData,
+                                        mediaItems,
+                                        context
+                                    ) {}
+
+                                } else {
+
+                                    val bookmarkData: MutableMap<String, Any> =
+                                        mutableMapOf()
+
+                                    val userData: MutableMap<String, Any> =
+                                        mutableMapOf()
+
+                                    val mediaItems: MutableMap<String, Uri> =
+                                        mutableMapOf()
+
+                                    bookmarkData["bookmark-${currentUser.id}"] =
+                                        currentUser.id ?: ""
+
+                                    userData["timesBookmarkedCount"] =
+                                        currentUser.timesBookmarkedCount?.plus(1)
+                                            ?: 0
+
+                                    Log.d(
+                                        "UserProfileScreen",
+                                        "timesBookmarkedCount = ${userData["timesBookmarkedCount"]}"
+                                    )
+
+                                    userViewModel.saveAndStoreData(
+                                        currentUser.id ?: "",
+                                        userData,
+                                        mediaItems,
+                                        context
+                                    ) {}
+
+                                    bookmarkViewModel.saveAndStoreBookmark(
+                                        currentUser.id ?: "",
+                                        bookmarkData
+                                    )
+
                                 }
                             },
                         tint = Color.White
@@ -1100,7 +807,7 @@ fun AnchoredDraggableBox(
                             ),
                             color = Color.White
                         )
-                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
                                 imageVector = Icons.Outlined.LocationOn,
                                 contentDescription = "Location Icon",
@@ -1109,8 +816,10 @@ fun AnchoredDraggableBox(
                                     .size(16.dp) // Set the size of the icon to match the font size of the text
                             )
                             Spacer(modifier = Modifier.width(4.dp))
-                            val yourLatitude = user?.latitude ?: 0.0
-                            val yourLongitude = user?.longitude ?: 0.0
+                            val yourLatitude = userUiState.value?.latitude ?: 0.0
+                            val yourLongitude = userUiState.value?.longitude ?: 0.0
+                            Log.d("UsersScreen", "yourLatitude - $yourLatitude")
+                            Log.d("UsersScreen", "yourLongitude - $yourLongitude")
                             val thisLatitude = currentUser.latitude ?: 0.0
                             val thisLongitude = currentUser.longitude ?: 0.0
                             val distance = locationViewModel.calculateDistance(
@@ -1131,6 +840,7 @@ fun AnchoredDraggableBox(
             }
         }
     }
+//    }
 
 
 }

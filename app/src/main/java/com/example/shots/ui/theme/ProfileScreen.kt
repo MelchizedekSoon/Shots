@@ -2,10 +2,8 @@ package com.example.shots.ui.theme
 
 import android.content.ClipData
 import android.content.ClipboardManager
-import android.content.ContentValues.TAG
 import android.content.Context
 import android.util.Log
-import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,10 +18,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardColors
@@ -40,7 +36,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -70,50 +66,38 @@ import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
 import com.example.shots.FirebaseModule
 import com.example.shots.R
-import com.example.shots.RoomModule
-import com.example.shots.ViewModelModule
 import com.example.shots.data.User
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 
 @OptIn(
-    ExperimentalMaterial3Api::class, ExperimentalGlideComposeApi::class,
-    ExperimentalMaterialApi::class
+    ExperimentalMaterial3Api::class, ExperimentalGlideComposeApi::class
 )
 @Composable
 fun ProfileScreen(
-    navController: NavHostController, usersViewModel: UsersViewModel,
-    bookmarkViewModel: BookmarkViewModel,
-    receivedLikeViewModel: ReceivedLikeViewModel,
-    sentLikeViewModel: SentLikeViewModel,
-    receivedShotViewModel: ReceivedShotViewModel,
-    sentShotViewModel: SentShotViewModel,
+    navController: NavHostController, userViewModel: UserViewModel,
+    editProfileViewModel: EditProfileViewModel,
+    profileViewModel: ProfileViewModel,
+    firebaseViewModel: FirebaseViewModel,
     dataStore: DataStore<Preferences>
 ) {
-    val firebaseAuth = FirebaseModule.provideFirebaseAuth()
-    val firestore = FirebaseModule.provideFirestore()
-    val firebaseStorage = FirebaseModule.provideStorage()
-    val firebaseRepository =
-        FirebaseModule.provideFirebaseRepository(firebaseAuth, firestore, firebaseStorage)
-    val editProfileViewModel =
-        ViewModelModule.provideEditProfileViewModel(firebaseRepository, firebaseAuth)
-    val appDatabase = RoomModule.provideAppDatabase(LocalContext.current)
-    val userDao = RoomModule.provideUserDao(appDatabase)
-    val receivedLikeDao = RoomModule.provideReceiveLikeDao(appDatabase)
-    val sentLikeDao = RoomModule.provideSentLikeDao(appDatabase)
-    val receivedShotDao = RoomModule.provideReceiveShotDao(appDatabase)
-    val sentShotDao = RoomModule.provideSentShotDao(appDatabase)
-    var user: User? by remember { mutableStateOf(null) }
-    val retrievedUser = remember { mutableStateOf<User?>(null) }
+
+    val user = userViewModel.user.collectAsState()
+    val profileUiState = profileViewModel.profileUiState.collectAsState()
+
+    //this provides a fresh load of the profile fields (pause)
+    profileViewModel.loadProfileFields()
+
     var logOutWasClicked by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
 
     val logOutConfirmed: () -> Unit = {
-        scope.launch {
-            firebaseAuth.signOut()
+        scope.launch(Dispatchers.Main) {
+            firebaseViewModel.logOut()
+            userViewModel.resetYourUser()
+            editProfileViewModel.resetYourEditProfileState()
             dataStore.edit { preferences ->
                 preferences[intPreferencesKey("currentScreen")] = 0
                 preferences[booleanPreferencesKey("isLoggedIn")] = false
@@ -122,69 +106,6 @@ fun ProfileScreen(
         }
     }
 
-    var mediaOneState by remember {
-        mutableStateOf(
-            ""
-        )
-    }
-    var receivedLikesCount by remember { mutableStateOf(0) }
-    var receivedShotsCount by remember { mutableStateOf(0) }
-    var timesBookmarkedCount by remember { mutableStateOf(0) }
-
-
-    LaunchedEffect(Unit) {
-        withContext(Dispatchers.IO) {
-//            val data = firebaseAuth.currentUser?.uid?.let {
-//                editProfileViewModel.getUserData(it)
-//            }
-//            retrievedUser.value = data
-//            mediaOneState = retrievedUser.value?.mediaOne ?: ""
-            user = usersViewModel.getUser()
-            val userList = userDao.getAll()
-            if (user != null) {
-                Log.d(TAG, "User after reaching Room DB is ${user}")
-                Log.d(TAG, "All users here - $userList")
-                mediaOneState = user?.mediaOne ?: ""
-                Log.d(TAG, "In Launched Effect, the mediaOne value is ${mediaOneState}")
-
-                // These have to be implemented but changed because as of now,
-                // it is error prone. I need to check if the object exists first
-
-//                receivedLikesCount = receivedLikeViewModel
-//                    .fetchReceivedLikeFromRoom(user?.id ?: "")
-//                    .receivedLikes.filter { it.isNotEmpty() && it.isNotBlank() }.toMutableList()
-//                    .size
-
-//                receivedShotsCount = receivedShotViewModel
-//                    .fetchReceivedShotFromRoom(user?.id ?: "")
-//                    .receivedShots.filter { it.isNotEmpty() && it.isNotBlank() }.toMutableList()
-//                    .size
-
-                receivedLikesCount = user?.likesCount ?: 0
-
-                receivedShotsCount = user?.shotsCount ?: 0
-
-                timesBookmarkedCount = user?.timesBookmarkedCount ?: 0
-
-                //                receivedLikesCount =
-//                    user?.id?.let {
-//                        receivedLikeDao.findById(it).receivedLikes.filter {
-//                            it.isNotEmpty()
-//                                    || it.isNotBlank() || it.isNotBlank()
-//                        }.size
-//                    } ?: 0
-//
-//                receivedShotsCount =
-//                    user?.id?.let {
-//                        receivedShotDao.findById(it).receivedShots.filter {
-//                            it.isNotEmpty()
-//                                    || it.isNotBlank() || it.isNotBlank()
-//                        }.size
-//                    } ?: 0
-
-            }
-        }
-    }
 
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState()
@@ -236,7 +157,7 @@ fun ProfileScreen(
 
         },
         bottomBar = {
-            BottomBar(navController = navController, usersViewModel)
+            BottomBar(navController = navController, userViewModel)
         },
         content = {
             Modifier.padding(it)
@@ -257,14 +178,9 @@ fun ProfileScreen(
                             disabledContainerColor = Color.Red
                         )
                     ) {
-                        Log.d(
-                            TAG, "Right before the GlideImage, mediaOne = ${user?.mediaOne}" +
-                                    " but when you call mediaOneState it is " +
-                                    mediaOneState
-                        )
-                        if (!user?.mediaOne.isNullOrBlank()) {
+                        if (!profileUiState.value.mediaOne.isNullOrBlank()) {
                             GlideImage(
-                                model = user?.mediaOne,
+                                model = profileUiState.value.mediaOne,
                                 modifier = Modifier.clip(CircleShape),
                                 contentScale = ContentScale.Crop, // This sets the content scale for the loaded image
                                 contentDescription = "mediaOne image/Profile Photo"
@@ -281,20 +197,18 @@ fun ProfileScreen(
                                     .padding(0.dp, 48.dp, 0.dp, 0.dp)
                             )
                         }
-
-
                     }
 
                     Spacer(Modifier.height(12.dp))
                     Text(
-                        text = user?.displayName ?: "", fontSize = 28.sp,
+                        text = profileUiState.value.displayName ?: "", fontSize = 28.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(Modifier.height(4.dp))
                     Row(horizontalArrangement = Arrangement.Center) {
                         Text(text = "@", fontSize = 16.sp)
                         Text(
-                            text = user?.userName ?: "", fontSize = 16.sp,
+                            text = profileUiState.value.userName ?: "", fontSize = 16.sp,
                             textAlign = TextAlign.Center
                         )
                     }
@@ -350,7 +264,10 @@ fun ProfileScreen(
                                 .clickable {
                                     val clipboardManager =
                                         context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                    val clipData = ClipData.newPlainText("Username", user?.userName)
+                                    val clipData = ClipData.newPlainText(
+                                        "Username",
+                                        profileUiState.value.userName
+                                    )
                                     clipboardManager.setPrimaryClip(clipData)
 
                                     // Show a toast or snackbar to indicate that the username has been copied
@@ -416,7 +333,7 @@ fun ProfileScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                             ) {
-                                append(" $receivedLikesCount")
+                                append(" ${profileUiState.value.likesReceived}")
                             }
                         }
                         Text(
@@ -434,7 +351,7 @@ fun ProfileScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                             ) {
-                                append(" $receivedShotsCount")
+                                append(" ${profileUiState.value.shotsReceived}")
                             }
                         }
                         Text(
@@ -452,7 +369,7 @@ fun ProfileScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                             ) {
-                                append(" $timesBookmarkedCount")
+                                append(" ${profileUiState.value.timesBookmarked}")
                             }
                         }
                         Text(
@@ -511,7 +428,7 @@ fun ProfileScreen(
                             Spacer(Modifier.height(24.dp))
                             Text("Blocked Users", color = Color.Black,
                                 modifier = Modifier.clickable {
-                                   navController.navigate("blockedUsers")
+                                    navController.navigate("blockedUsers")
                                 })
                             Spacer(Modifier.height(24.dp))
                             Text("Delete Account", color = Color.Black,

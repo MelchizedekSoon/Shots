@@ -61,8 +61,10 @@ import com.example.shots.data.UserWhoBlockedYou
 fun SearchScreen(
     navController: NavHostController,
     searchViewModel: SearchViewModel,
-    usersViewModel: UsersViewModel,
+    userViewModel: UserViewModel
 ) {
+
+    searchViewModel.loadUsers()
 
     val onBackClick: () -> Unit = {
         navController.popBackStack()
@@ -95,7 +97,7 @@ fun SearchScreen(
             }
         },
         bottomBar = {
-            BottomBar(navController = navController, usersViewModel)
+            BottomBar(navController = navController, userViewModel)
         }
     ) { contentPadding ->
         Modifier.padding(contentPadding)

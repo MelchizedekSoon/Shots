@@ -6,10 +6,12 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.shots.data.AppDatabase
 import com.example.shots.data.FirebaseRepository
-import com.google.firebase.auth.FirebaseAuth
+import com.example.shots.data.User
+import com.example.shots.data.UserRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import kotlin.math.atan2
@@ -17,21 +19,28 @@ import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
 
+data class LocationUiState(
+    var userId: String,
+    val latitude: Double,
+    val longitude: Double
+)
+
 @HiltViewModel
 class LocationViewModel @Inject constructor(
     private val firebaseRepository: FirebaseRepository,
-    private val firebaseAuth: FirebaseAuth,
-    private val appDatabase: AppDatabase
+    private val userRepository: UserRepository,
+    private val dispatcher: CoroutineDispatcher
 ) : ViewModel() {
+
     var latitude: Double = 0.0
     var longitude: Double = 0.0
 
-    fun saveLocationToFirebase(
+    fun saveAndStoreLocation(
         userId: String, latitude: Double, longitude: Double,
         context: Context,
-        usersViewModel: UsersViewModel
+        userViewModel: UserViewModel
     ) {
-        viewModelScope.launch {
+        viewModelScope.launch(dispatcher) {
             val userData: MutableMap<String, Any> = mutableMapOf()
             val mediaItems: MutableMap<String, Uri> = mutableMapOf()
             userData["latitude"] = latitude
@@ -39,8 +48,14 @@ class LocationViewModel @Inject constructor(
             val success =
                 firebaseRepository.writeUserDataToFirebase(userId, userData, mediaItems, context)
             if (success) {
-                Log.d(ContentValues.TAG, "location added!")
-                usersViewModel.storeUserInRoom(userId)
+                Log.d("LocationViewModel", "location added!")
+                var user: User? = null
+                userRepository.getCurrentUser().collect { returnedUser ->
+                    user = returnedUser
+                }
+                if (user != null) {
+                    userViewModel.updateUser(user!!)
+                }
             } else {
                 Log.d(ContentValues.TAG, "Location failed to be added!")
             }

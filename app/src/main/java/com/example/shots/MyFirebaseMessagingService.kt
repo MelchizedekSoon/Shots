@@ -1,43 +1,24 @@
 package com.example.shots
 
 import android.Manifest
-import android.R
-import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.util.Log
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.core.app.ActivityCompat
-import androidx.core.app.NotificationCompat
-import androidx.core.app.NotificationManagerCompat
-import com.example.shots.data.UserDao
-import com.example.shots.ui.theme.UsersViewModel
+import com.example.shots.data.UserRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.auth.User
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.onesignal.OneSignal
 import io.getstream.android.push.firebase.FirebaseMessagingDelegate
-import io.getstream.chat.android.models.UserId
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.internal.notify
 
 
 class MyFirebaseMessagingService : FirebaseMessagingService() {
@@ -76,36 +57,39 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         }
 
         val sender = remoteMessage.data["sender"]
-        val userId = remoteMessage.data["receiver_id"]
+        var userId = remoteMessage.data["receiver_id"]
 
-        if(!sender.isNullOrEmpty()) {
-            Log.d("FirebaseMessagingService" , "Sender: $sender")
-            if(sender == "stream.chat") {
+        if (!sender.isNullOrEmpty()) {
+            Log.d("FirebaseMessagingService", "Sender: $sender")
+            if (sender == "stream.chat") {
                 val oneSignalId = OneSignal.User.onesignalId
-        val externalId = userId // You will supply the external user id to the OneSignal SDK
+                val externalId = userId // You will supply the external user id to the OneSignal SDK
 //        OneSignal.login(externalId)
 
                 val firebaseStorage = FirebaseModule.provideStorage()
                 val firebaseFirestore = FirebaseModule.provideFirestore()
                 val firebaseAuth = FirebaseModule.provideFirebaseAuth()
-                val firebaseRepository = FirebaseModule.provideFirebaseRepository(firebaseAuth,
-                    firebaseFirestore, firebaseStorage)
+                val firebaseRepository = FirebaseModule.provideFirebaseRepository(
+                    firebaseAuth,
+                    firebaseFirestore, firebaseStorage
+                )
+//                val usersViewModel = ViewModelModule.provideUserViewModel(firebaseRepository)
+
                 val appDatabase = RoomModule.provideAppDatabase(context)
-                val usersViewModel = ViewModelModule.provideUsersViewModel(firebaseRepository,
-                    firebaseAuth, appDatabase)
                 val userDao = RoomModule.provideUserDao(appDatabase)
 
 
                 val userData: MutableMap<String, Any> = mutableMapOf()
                 val mediaItems: MutableMap<String, Uri> = mutableMapOf()
 
-                val user = usersViewModel.getUser()
 
-                userData["newMessagesCount"] = user?.newMessagesCount?.plus(1) ?: 0
+//                val user = getUser(userRepository, firebaseAuth)
 
-                usersViewModel.saveUserDataToFirebase(userId ?: "", userData, mediaItems, context) {
+//                userData["newMessagesCount"] = user.newMessagesCount?.plus(1) ?: 0
 
-                }
+//                usersViewModel.saveUserDataToFirebase(userId ?: "", userData, mediaItems, context) {
+//
+//                }
 
 
                 val okHttpclient = OkHttpClient()
@@ -128,10 +112,12 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
                 val apiKey = "OTkwMDRiNjUtYTA5Ny00NzYyLWIwNGEtMWI3MDI2ODIwMTk4"
 
-                val request = Request.Builder().url("https://api.onesignal.com/notifications").post(body)
-                    .addHeader("accept", "application/json").addHeader("Authorization", "Basic ${apiKey}")
-                    .addHeader("content-type", "application/json")
-                    .build()
+                val request =
+                    Request.Builder().url("https://api.onesignal.com/notifications").post(body)
+                        .addHeader("accept", "application/json")
+                        .addHeader("Authorization", "Basic ${apiKey}")
+                        .addHeader("content-type", "application/json")
+                        .build()
 
                 val call = okHttpclient.newCall(request)
 
@@ -151,12 +137,16 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         // Also if you intend on generating your own notifications as a result of a received FCM
         // message, here is where that should be initiated. See sendNotification method below.
 
-        Log.d("FirebaseMessagingService", "Message Notification Body: ${remoteMessage.notification?.body}")
+        Log.d(
+            "FirebaseMessagingService",
+            "Message Notification Body: ${remoteMessage.notification?.body}"
+        )
 
         val title = remoteMessage.notification?.title
         val text = remoteMessage.notification?.body
 
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notificationManager =
+            getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
 // Create the notification channel
         val CHANNEL_ID = "SHOTS_NOTIFICATION"
@@ -180,7 +170,6 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 // Use a unique notification ID to identify and update the notification later if needed
 //        val notificationId = 1
 //        notificationManager.notify(notificationId, notification)
-
 
 
         if (ActivityCompat.checkSelfPermission(
@@ -227,7 +216,8 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     }
 }
 
-suspend fun userCreator(usersViewModel: UsersViewModel, userDao: UserDao, userId: String?): com.example.shots.data.User? {
-    return usersViewModel.fetchUserFromRoom(userId ?: "")
+fun getUser(userRepository: UserRepository, firebaseAuth: FirebaseAuth): com.example.shots.data.User {
+    var userId = firebaseAuth.currentUser?.displayName
+    return userRepository.getUser(userId ?: "")
 }
 

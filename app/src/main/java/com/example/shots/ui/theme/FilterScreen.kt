@@ -1,9 +1,7 @@
 package com.example.shots.ui.theme
 
-import android.net.Uri
 import android.util.Log
 import androidx.activity.OnBackPressedCallback
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -22,7 +20,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -36,6 +33,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -55,17 +53,28 @@ import com.example.shots.R
 import com.example.shots.data.Distance
 import com.example.shots.data.ShowMe
 
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FilterScreen(navController: NavHostController, usersViewModel: UsersViewModel) {
+fun FilterScreen(
+    navController: NavHostController, userViewModel: UserViewModel,
+    filterViewModel: FilterViewModel
+) {
     val context = LocalContext.current
-    var user = usersViewModel.getUser()
+
+    val filteredUser = filterViewModel.uiState.collectAsState()
 
     val backCallback = object : OnBackPressedCallback(true) {
         override fun handleOnBackPressed() {
-            usersViewModel.updateFilter(user, usersViewModel, navController, context) {
-                navController.popBackStack()
-            }
+            Log.d("FilterScreen", "${filteredUser.value.showMe}")
+            filterViewModel.saveAndStoreFilters(context)
+            userViewModel.loadUsers()
+            navController.popBackStack()
+
+
+//            userViewModel.updateFilter(user, userViewModel, navController, context) {
+//                navController.popBackStack()
+//            }
         }
     }
 
@@ -79,18 +88,20 @@ fun FilterScreen(navController: NavHostController, usersViewModel: UsersViewMode
         }
     }
 
-    val userData: MutableMap<String, Any> = mutableMapOf()
-    val mediaItems: MutableMap<String, Uri> = mutableMapOf()
 
     Scaffold(topBar = {
         TopAppBar(title = { Text(text = "Filter Options") },
             navigationIcon = {
                 IconButton(onClick = {
-                    usersViewModel.updateFilter(
-                        user, usersViewModel, navController, context
-                    ) {
-                        navController.popBackStack()
-                    }
+                    filterViewModel.saveAndStoreFilters(context)
+                    navController.popBackStack()
+
+//                    userViewModel.updateFilter(
+//                        user, userViewModel, navController, context
+//                    ) {
+//                        navController.popBackStack()
+//                    }
+
                 }) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back Icon")
                 }
@@ -103,7 +114,7 @@ fun FilterScreen(navController: NavHostController, usersViewModel: UsersViewMode
                 .padding(16.dp, 80.dp, 16.dp, 0.dp)
         ) {
 
-            val showMeValue = when (user?.showMe) {
+            val showMeValue = when (filteredUser.value.showMe) {
                 ShowMe.MEN -> "Men"
                 ShowMe.WOMEN -> "Women"
                 ShowMe.ANYONE -> "Anyone"
@@ -154,14 +165,17 @@ fun FilterScreen(navController: NavHostController, usersViewModel: UsersViewMode
                     Text("Anyone")
                 }
 
-                user = user?.copy(
-                    showMe = when (selectedOption) {
-                        "Men" -> ShowMe.MEN
-                        "Women" -> ShowMe.WOMEN
-                        "Anyone" -> ShowMe.ANYONE
-                        else -> ShowMe.WOMEN
-                    }
-                )
+                LaunchedEffect(selectedOption) {
+                    filterViewModel.updateShowMe(
+                        when (selectedOption) {
+                            "Men" -> ShowMe.MEN
+                            "Women" -> ShowMe.WOMEN
+                            "Anyone" -> ShowMe.ANYONE
+                            else -> ShowMe.WOMEN
+                        }
+                    )
+                }
+
             }
             Spacer(Modifier.height(12.dp))
             Divider()
@@ -177,7 +191,7 @@ fun FilterScreen(navController: NavHostController, usersViewModel: UsersViewMode
             var showUsersExpanded by remember { mutableStateOf(false) }
             var showUsersStoredOption by rememberSaveable {
                 mutableStateOf(
-                    when (user?.showUsers) {
+                    when (filteredUser.value.showUsers) {
                         Distance.TEN -> "TEN"
                         Distance.TWENTY -> "TWENTY"
                         Distance.THIRTY -> "THIRTY"
@@ -327,29 +341,9 @@ fun FilterScreen(navController: NavHostController, usersViewModel: UsersViewMode
                             }
 
                             LaunchedEffect(showUsersStoredOption) {
-                                usersViewModel.updateUserField { currentUser ->
-                                    currentUser.copy(
-                                        showUsers = when (showUsersStoredOption) {
-                                            "TEN" -> Distance.TEN
-                                            "TWENTY" -> Distance.TWENTY
-                                            "THIRTY" -> Distance.THIRTY
-                                            "FORTY" -> Distance.FORTY
-                                            "FIFTY" -> Distance.FIFTY
-                                            "SIXTY" -> Distance.SIXTY
-                                            "SEVENTY" -> Distance.SEVENTY
-                                            "EIGHTY" -> Distance.EIGHTY
-                                            "NINETY" -> Distance.NINETY
-                                            "ONE_HUNDRED" -> Distance.ONE_HUNDRED
-                                            "ANYWHERE" -> Distance.ANYWHERE
-                                            else -> Distance.TEN
-                                        }
-                                    )
-                                }
 
-                                userData["showUsers"] = showUsersStoredOption
-                                Log.d("FilterScreen", "showUsers - ${userData["showUsers"]}")
-                                user = user?.copy(
-                                    showUsers = when (showUsersStoredOption) {
+                                filterViewModel.updateShowUsers(
+                                    when (showUsersStoredOption) {
                                         "TEN" -> Distance.TEN
                                         "TWENTY" -> Distance.TWENTY
                                         "THIRTY" -> Distance.THIRTY
@@ -364,6 +358,8 @@ fun FilterScreen(navController: NavHostController, usersViewModel: UsersViewMode
                                         else -> Distance.TEN
                                     }
                                 )
+
+
                             }
 
                         }
@@ -372,50 +368,6 @@ fun FilterScreen(navController: NavHostController, usersViewModel: UsersViewMode
             }
 
 
-//            val slideStartValue = when (user?.distance ?: "") {
-//                Distance.TEN -> 10
-//                Distance.TWENTY -> 20
-//                Distance.THIRTY -> 30
-//                Distance.FORTY -> 40
-//                Distance.FIFTY -> 50
-//                Distance.SIXTY -> 60
-//                Distance.SEVENTY -> 70
-//                Distance.EIGHTY -> 80
-//                Distance.NINETY -> 90
-//                Distance.ONE_HUNDRED -> 100
-//                else -> 10
-//            }
-//            var sliderPosition by remember { mutableFloatStateOf(slideStartValue.toFloat()) }
-//            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-//                Slider(
-//                    value = sliderPosition,
-//                    onValueChange = { sliderPosition = it },
-//                    colors = SliderDefaults.colors(
-//                        thumbColor = MaterialTheme.colorScheme.primary,
-//                        activeTrackColor = MaterialTheme.colorScheme.primary,
-//                        inactiveTrackColor = MaterialTheme.colorScheme.secondaryContainer,
-//                    ),
-//                    steps = 7,
-//                    valueRange = 20f..100f
-//                )
-//                Text(text = "Within ${sliderPosition.toInt()} miles")
-//
-//                user = user?.copy(
-//                    distance = when (sliderPosition.toInt()) {
-//                        10 -> Distance.TEN
-//                        20 -> Distance.TWENTY
-//                        30 -> Distance.THIRTY
-//                        40 -> Distance.FORTY
-//                        50 -> Distance.FIFTY
-//                        60 -> Distance.SIXTY
-//                        70 -> Distance.SEVENTY
-//                        80 -> Distance.EIGHTY
-//                        90 -> Distance.NINETY
-//                        100 -> Distance.ONE_HUNDRED
-//                        else -> Distance.TEN
-//                    }
-//                )
-//            }
 
 
             Spacer(Modifier.height(12.dp))
@@ -432,7 +384,7 @@ fun FilterScreen(navController: NavHostController, usersViewModel: UsersViewMode
             var acceptShotsExpanded by remember { mutableStateOf(false) }
             var acceptShotsStoredOption by rememberSaveable {
                 mutableStateOf(
-                    when (user?.showUsers) {
+                    when (filteredUser.value.acceptShots) {
                         Distance.TEN -> "TEN"
                         Distance.TWENTY -> "TWENTY"
                         Distance.THIRTY -> "THIRTY"
@@ -582,29 +534,9 @@ fun FilterScreen(navController: NavHostController, usersViewModel: UsersViewMode
                             }
 
                             LaunchedEffect(acceptShotsStoredOption) {
-                                usersViewModel.updateUserField { currentUser ->
-                                    currentUser.copy(
-                                        showUsers = when (acceptShotsStoredOption) {
-                                            "TEN" -> Distance.TEN
-                                            "TWENTY" -> Distance.TWENTY
-                                            "THIRTY" -> Distance.THIRTY
-                                            "FORTY" -> Distance.FORTY
-                                            "FIFTY" -> Distance.FIFTY
-                                            "SIXTY" -> Distance.SIXTY
-                                            "SEVENTY" -> Distance.SEVENTY
-                                            "EIGHTY" -> Distance.EIGHTY
-                                            "NINETY" -> Distance.NINETY
-                                            "ONE_HUNDRED" -> Distance.ONE_HUNDRED
-                                            "ANYWHERE" -> Distance.ANYWHERE
-                                            else -> Distance.TEN
-                                        }
-                                    )
-                                }
 
-                                userData["acceptShots"] = acceptShotsStoredOption
-                                Log.d("FilterScreen", "acceptShots - ${userData["acceptShots"]}")
-                                user = user?.copy(
-                                    showUsers = when (acceptShotsStoredOption) {
+                                filterViewModel.updateAcceptShots(
+                                    when (acceptShotsStoredOption) {
                                         "TEN" -> Distance.TEN
                                         "TWENTY" -> Distance.TWENTY
                                         "THIRTY" -> Distance.THIRTY
@@ -619,6 +551,7 @@ fun FilterScreen(navController: NavHostController, usersViewModel: UsersViewMode
                                         else -> Distance.TEN
                                     }
                                 )
+
                             }
 
                         }
@@ -638,11 +571,13 @@ fun FilterScreen(navController: NavHostController, usersViewModel: UsersViewMode
             )
             var ageSliderPosition by remember {
                 mutableStateOf(
-                    (user?.ageMinToShow?.toFloat() ?: 18f)..(user?.ageMaxToShow?.toFloat() ?: 35f)
+                    (filteredUser.value.ageMinToShow.toFloat()
+                        ?: 18f)..(filteredUser.value.ageMaxToShow?.toFloat() ?: 35f)
                 )
             }
 
             Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+
                 RangeSlider(
                     value = ageSliderPosition,
                     onValueChange = { range -> ageSliderPosition = range },
@@ -652,10 +587,14 @@ fun FilterScreen(navController: NavHostController, usersViewModel: UsersViewMode
                         // viewModel.updateSelectedSliderValue(ageSliderPosition)
                     }
                 )
+
                 Text(text = "${ageSliderPosition.start.toInt()} - ${ageSliderPosition.endInclusive.toInt()}")
 
-                user = user?.copy(ageMinToShow = ageSliderPosition.start.toInt())
-                user = user?.copy(ageMaxToShow = ageSliderPosition.endInclusive.toInt())
+                LaunchedEffect(ageSliderPosition.start, ageSliderPosition.endInclusive) {
+                    filterViewModel.updateAgeMinToShow(ageSliderPosition.start.toInt())
+                    filterViewModel.updateAgeMaxToShow(ageSliderPosition.endInclusive.toInt())
+                }
+
             }
         }
     }

@@ -1,6 +1,5 @@
 package com.example.shots.ui.theme
 
-import android.content.ContentValues
 import android.content.ContentValues.TAG
 import android.net.Uri
 import android.util.Log
@@ -27,7 +26,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardColors
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -35,10 +33,10 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -57,16 +55,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.navigation.NavController
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
-import com.example.shots.FirebaseModule
 import com.example.shots.R
-import com.example.shots.RoomModule
 import com.example.shots.data.User
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -74,25 +66,19 @@ import kotlinx.coroutines.withContext
 @OptIn(ExperimentalGlideComposeApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun LikeScreen(
-    navController: NavController, usersViewModel: UsersViewModel,
+    navController: NavController, userViewModel: UserViewModel,
     receivedLikeViewModel: ReceivedLikeViewModel, sentLikeViewModel: SentLikeViewModel,
-    locationViewModel: LocationViewModel,
-    dataStore: DataStore<Preferences>
+    locationViewModel: LocationViewModel
 ) {
-    val appDatabase = RoomModule.provideAppDatabase(LocalContext.current)
-    val userDao = RoomModule.provideUserDao(appDatabase)
-    val firebaseAuth = FirebaseModule.provideFirebaseAuth()
-    var user by remember { mutableStateOf<User?>(null) }
-    var sentLikesList by remember { mutableStateOf<List<String>?>(null) }
-    var receivedLikesList by remember { mutableStateOf<List<String>?>(null) }
+
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var isLiked by rememberSaveable {
-        mutableStateOf(false)
-    }
     var isOnReceived by rememberSaveable {
         mutableStateOf(true)
     }
+
+    val user by userViewModel.user.collectAsState()
+    val receivedLikeUiState by receivedLikeViewModel.uiState.collectAsState()
+    val sentLikeUiState by sentLikeViewModel.uiState.collectAsState()
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
@@ -102,31 +88,18 @@ fun LikeScreen(
 
             userData["newLikesCount"] = 0
 
-            usersViewModel.
-            saveUserDataToFirebase(firebaseAuth.currentUser?.displayName ?: "",
-                userData,
-                mediaItems,
-                context) {
+            userViewModel.saveAndStoreData(user?.id ?: "", userData, mediaItems, context) {
 
             }
 
-            dataStore.edit { preferences ->
-                preferences[intPreferencesKey("newLikesCount")] = 0
-            }
+//            dataStore.edit { preferences ->
+//                preferences[intPreferencesKey("newLikesCount")] = 0
+//            }
 
-            user = usersViewModel.getUser()
-
-            val userId = firebaseAuth.currentUser?.displayName ?: ""
-
-            sentLikesList = sentLikeViewModel.fetchSentLikeFromRoom(userId).sentLikes
-                .filter { it.isNotEmpty() && it.isNotBlank() }.toMutableList()
-
-            receivedLikesList = receivedLikeViewModel.fetchReceivedLikeFromRoom(userId).receivedLikes
-                .filter { it.isNotEmpty() && it.isNotBlank() }.toMutableList()
 
             Log.d("LikeScreen", "The user on likedScreen is $user")
-            Log.d("LikeScreen", "The sentLikesList is $sentLikesList")
-            Log.d("LikeScreen", "The receivedLikesList is $receivedLikesList")
+//            Log.d("LikeScreen", "The sentLikesList is $sentLikesList")
+//            Log.d("LikeScreen", "The receivedLikesList is $receivedLikesList")
         }
     }
     Scaffold(
@@ -195,7 +168,7 @@ fun LikeScreen(
 
         },
         bottomBar = {
-            BottomBar(navController = navController, usersViewModel)
+            BottomBar(navController = navController, userViewModel)
         }
     ) {
         Modifier.padding(it)
@@ -236,268 +209,261 @@ fun LikeScreen(
                 Spacer(Modifier.height(16.dp))
             }
             if (!isOnReceived) {
-                // grid for sent likes
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 8.dp)
-                ) {
-                    val contrast = 0.8f // 0f..10f (1 should be default)
-                    val brightness = 0f // -255f..255f (0 should be default)
-                    val colorMatrix = floatArrayOf(
-                        contrast, 0f, 0f, 0f, brightness,
-                        0f, contrast, 0f, 0f, brightness,
-                        0f, 0f, contrast, 0f, brightness,
-                        0f, 0f, 0f, 1f, 0f
-                    )
-                    items(sentLikesList?.size ?: 0) { index ->
-                        var currentUser by remember { mutableStateOf<User?>(null) }
-                        LaunchedEffect(Unit) {
-                            withContext(Dispatchers.IO) {
-                                currentUser = sentLikesList?.get(index)?.trim()
-                                    ?.let { it1 -> userDao.findById(it1) }
-                            }
-                        }
-                        Box(modifier = Modifier.clickable {
-                            navController.navigate("userProfile/${currentUser?.id}") {
-                                launchSingleTop = true
-                                popUpTo(navController.graph.startDestinationId) {
-                                    saveState = true
+
+                if (sentLikeUiState.sentLikes.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .padding(88.dp)
+                            .fillMaxSize()
+                    ) {
+                        Icon(
+                            painterResource(id = R.drawable.heart_alt_svgrepo_com),
+                            "Like Icon",
+                            modifier = Modifier
+                                .height(240.dp)
+                                .width(240.dp)
+                                .align(Alignment.TopCenter)
+                                .padding(0.dp, 40.dp, 0.dp, 0.dp)
+                        )
+
+                        Text(
+                            "No Sent Likes",
+                            fontSize = 24.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .padding(0.dp, 40.dp, 0.dp, 0.dp)
+                        )
+
+                    }
+                } else {
+                    // grid for sent likes
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(8.dp, 0.dp, 8.dp, 64.dp)
+                    ) {
+                        val contrast = 0.8f // 0f..10f (1 should be default)
+                        val brightness = 0f // -255f..255f (0 should be default)
+                        val colorMatrix = floatArrayOf(
+                            contrast, 0f, 0f, 0f, brightness,
+                            0f, contrast, 0f, 0f, brightness,
+                            0f, 0f, contrast, 0f, brightness,
+                            0f, 0f, 0f, 1f, 0f
+                        )
+                        items(sentLikeUiState.sentLikes.size) { index ->
+                            var currentUser by remember { mutableStateOf<User?>(null) }
+                            LaunchedEffect(Unit) {
+                                withContext(Dispatchers.IO) {
+                                    currentUser =
+                                        sentLikeUiState.sentLikes[index].trim()
+                                            .let { it1 ->
+                                                userViewModel.fetchUserFromRoom(it1)
+                                            }
                                 }
                             }
-                        }) {
-                            if(!currentUser?.mediaOne.isNullOrBlank()) {
-                                Card(modifier = Modifier.height(240.dp)) {
-                                    GlideImage(
-                                        model = currentUser?.mediaOne,
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentScale = ContentScale.Crop,
-                                        contentDescription = "mediaOne for liked user",
-                                        colorFilter = ColorFilter.colorMatrix(
-                                            ColorMatrix(
-                                                colorMatrix
+                            Box(modifier = Modifier.clickable {
+                                try {
+                                    navController.navigate("userProfile/${currentUser?.id}") {
+                                        launchSingleTop = true
+                                        popUpTo(navController.graph.startDestinationId) {
+                                            saveState = true
+                                        }
+                                    }
+                                } catch (iae: IllegalArgumentException) {
+                                    Log.d("LikeScreen", "User's profile not reachable.")
+                                }
+                            }) {
+                                if (!currentUser?.mediaOne.isNullOrBlank()) {
+                                    Card(modifier = Modifier.height(240.dp)) {
+                                        GlideImage(
+                                            model = currentUser?.mediaOne,
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop,
+                                            contentDescription = "mediaOne for liked user",
+                                            colorFilter = ColorFilter.colorMatrix(
+                                                ColorMatrix(
+                                                    colorMatrix
+                                                )
                                             )
                                         )
-                                    )
-                                }
-                            } else {
-                                Card(modifier = Modifier.height(240.dp)) {
-                                    Column(modifier = Modifier.fillMaxSize(),
-                                        verticalArrangement = Arrangement.Center,
-                                        horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Icon(
-                                            painterResource(id = R.drawable.no_image_svgrepo_com),
-                                            "No Image Icon",
-                                            modifier = Modifier
-                                                .height(80.dp)
-                                                .width(80.dp)
-                                                .padding(0.dp, 0.dp, 0.dp, 0.dp)
-                                        )
+                                    }
+                                } else {
+                                    Card(modifier = Modifier.height(240.dp)) {
+                                        Column(
+                                            modifier = Modifier.fillMaxSize(),
+                                            verticalArrangement = Arrangement.Center,
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Icon(
+                                                painterResource(id = R.drawable.no_image_svgrepo_com),
+                                                "No Image Icon",
+                                                modifier = Modifier
+                                                    .height(80.dp)
+                                                    .width(80.dp)
+                                                    .padding(0.dp, 0.dp, 0.dp, 0.dp)
+                                            )
+                                        }
                                     }
                                 }
-                            }
-//                            LaunchedEffect(
-//                                isLiked
-//                            ) {
-//                                scope.launch(Dispatchers.IO) {
-//                                    val userId = firebaseAuth.uid
-//                                    val userData = mutableMapOf<String, Any>()
-//                                    val mediaItems: MutableMap<String, Uri> = mutableMapOf()
-//                                    var originalUser = usersViewModel.getUser()
-//                                    val sentLikes = originalUser?.sentLikes
-//                                    Log.d(ContentValues.TAG, "The sent likes are - $sentLikes")
-//                                    sentLikesList = sentLikes?.split(" ") as MutableList<String>?
-//                                    Log.d(
-//                                        ContentValues.TAG,
-//                                        "Likes before addition - $sentLikesList"
-//                                    )
-//
-//                                    if (!isLiked
-//                                    ) {
-//                                        sentLikesList = sentLikesList?.toMutableList()
-//                                        if (sentLikesList?.contains(user?.id) == true) {
-//                                            Log.d(
-//                                                ContentValues.TAG,
-//                                                "Removing like to like list which is a String"
-//                                            )
-//                                            sentLikesList!!.remove(user?.id)
-//                                            Log.d(
-//                                                ContentValues.TAG,
-//                                                "likes post-removal - $sentLikesList"
-//                                            )
-//                                        }
-//                                    } else {
-//                                        if (user != null) {
-//                                            sentLikesList = sentLikesList?.toMutableList()
-//                                            if (user != null && !sentLikesList?.contains(user?.id)!!) {
-//                                                val currentId = user?.id
-//                                                if (currentId != null) {
-//                                                    sentLikesList!!.add(currentId)
-//                                                }
-//                                            }
-//                                        }
-//                                    }
-//
-//                                    val sentLikesAsString = sentLikesList?.joinToString(" ")?.trim()
-//                                    sentLikesList = null
-//
-//                                    if (sentLikesAsString != null) {
-//                                        userData["sentLikes"] = sentLikesAsString
-//                                    }
-//
-//                                    if (userId != null) {
-//                                        usersViewModel.saveUserDataToFirebase(
-//                                            userId,
-//                                            userData,
-//                                            mediaItems,
-//                                            context
-//                                        )
-//                                    }
-//
-//                                    if (userId != null) {
-//                                        originalUser = usersViewModel.getUser()
-//                                        val returnedUser =
-//                                            usersViewModel.getUserDataFromRepo(userId)
-//                                        originalUser =
-//                                            originalUser?.copy(sentLikes = returnedUser?.sentLikes)
-//                                        if (originalUser != null) {
-//                                            userDao.insert(originalUser)
-//                                        }
-//                                    }
-//                                }
-//                            }
-                            Column(
-                                Modifier
-                                    .fillMaxSize()
-                                    .padding(8.dp)
-                                    .align(Alignment.BottomEnd)
-                            ) {
-                                Text(
-                                    modifier = Modifier.padding(bottom = 8.dp), // Add bottom padding to create space between the two text rows
-                                    text = "${currentUser?.displayName}, ${
-                                        currentUser?.birthday?.div(
-                                            31556952000
-                                        )
-                                    }",
-                                    fontSize = 16.sp,
-                                    style = androidx.compose.ui.text.TextStyle(
-                                        fontWeight = FontWeight.Medium
-                                    ),
-                                    color = Color.White
-                                )
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.LocationOn,
-                                        contentDescription = "Location Icon",
-                                        tint = Color.White,
-                                        modifier = Modifier
-                                            .size(8.dp) // Set the size of the icon to match the font size of the text
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    val yourLatitude = user?.latitude ?: 0.0
-                                    val yourLongitude = user?.longitude ?: 0.0
-                                    val thisLatitude = currentUser?.latitude ?: 0.0
-                                    val thisLongitude = currentUser?.longitude ?: 0.0
-                                    val distance = locationViewModel.calculateDistance(
-                                        yourLatitude,
-                                        yourLongitude,
-                                        thisLatitude,
-                                        thisLongitude
-                                    )
+
+                                Column(
+                                    Modifier
+                                        .fillMaxSize()
+                                        .padding(8.dp)
+                                        .align(Alignment.BottomEnd)
+                                ) {
                                     Text(
-                                        text = "${distance.toInt()} miles away",
+                                        modifier = Modifier.padding(bottom = 8.dp), // Add bottom padding to create space between the two text rows
+                                        text = "${currentUser?.displayName}, ${
+                                            currentUser?.birthday?.div(
+                                                31556952000
+                                            )
+                                        }",
                                         fontSize = 16.sp,
-                                        style = androidx.compose.ui.text.TextStyle(fontWeight = FontWeight.Medium),
+                                        style = androidx.compose.ui.text.TextStyle(
+                                            fontWeight = FontWeight.Medium
+                                        ),
                                         color = Color.White
                                     )
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.LocationOn,
+                                            contentDescription = "Location Icon",
+                                            tint = Color.White,
+                                            modifier = Modifier
+                                                .size(8.dp) // Set the size of the icon to match the font size of the text
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        val yourLatitude = user?.latitude ?: 0.0
+                                        val yourLongitude = user?.longitude ?: 0.0
+                                        val thisLatitude = currentUser?.latitude ?: 0.0
+                                        val thisLongitude = currentUser?.longitude ?: 0.0
+                                        val distance = locationViewModel.calculateDistance(
+                                            yourLatitude,
+                                            yourLongitude,
+                                            thisLatitude,
+                                            thisLongitude
+                                        )
+                                        Text(
+                                            text = "${distance.toInt()} miles away",
+                                            fontSize = 16.sp,
+                                            style = androidx.compose.ui.text.TextStyle(fontWeight = FontWeight.Medium),
+                                            color = Color.White
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
                 }
             } else {
-                // grid for received likes
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 8.dp)
-                ) {
-                    val contrast = 0.8f // 0f..10f (1 should be default)
-                    val brightness = 0f // -255f..255f (0 should be default)
-                    val colorMatrix = floatArrayOf(
-                        contrast, 0f, 0f, 0f, brightness,
-                        0f, contrast, 0f, 0f, brightness,
-                        0f, 0f, contrast, 0f, brightness,
-                        0f, 0f, 0f, 1f, 0f
-                    )
-                    items(receivedLikesList?.size ?: 0) { index ->
-                        var currentUser by remember { mutableStateOf<User?>(null) }
-                        LaunchedEffect(Unit) {
-                            withContext(Dispatchers.IO) {
-                                currentUser = receivedLikesList?.get(index)?.trim()
-                                    ?.let { it1 -> userDao.findById(it1) }
+
+                if (receivedLikeUiState.receivedLikes.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .padding(88.dp)
+                            .fillMaxSize()
+                    ) {
+                        Icon(
+                            painterResource(id = R.drawable.heart_alt_svgrepo_com),
+                            "Like Icon",
+                            modifier = Modifier
+                                .height(240.dp)
+                                .width(240.dp)
+                                .align(Alignment.TopCenter)
+                                .padding(0.dp, 40.dp, 0.dp, 0.dp)
+                        )
+
+                        Text(
+                            "No Received Likes",
+                            fontSize = 24.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .padding(0.dp, 40.dp, 0.dp, 0.dp)
+                        )
+
+                    }
+                } else {
+                    // grid for received likes
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(8.dp, 0.dp, 8.dp, 64.dp)
+                    ) {
+                        val contrast = 0.8f // 0f..10f (1 should be default)
+                        val brightness = 0f // -255f..255f (0 should be default)
+                        val colorMatrix = floatArrayOf(
+                            contrast, 0f, 0f, 0f, brightness,
+                            0f, contrast, 0f, 0f, brightness,
+                            0f, 0f, contrast, 0f, brightness,
+                            0f, 0f, 0f, 1f, 0f
+                        )
+                        items(receivedLikeUiState.receivedLikes.size) { index ->
+                            var currentUser by remember { mutableStateOf<User?>(null) }
+                            LaunchedEffect(Unit) {
+                                withContext(Dispatchers.IO) {
+                                    currentUser =
+                                        receivedLikeUiState.receivedLikes[index].trim()
+                                            .let { it1 ->
+                                                userViewModel.fetchUserFromRoom(it1)
+                                            }
+                                }
                             }
-                        }
-//                        LaunchedEffect(Unit) {
-//                            withContext(Dispatchers.IO) {
-//                                val mutableReceivedLikesList = receivedLikesList?.toMutableList()
-//                                val userId = mutableReceivedLikesList?.get(index)
-//                                user = userDao.findById(userId ?: "")
-//                                if (user?.id != userId) {
-//                                    mutableReceivedLikesList?.removeAt(index)
-//                                    sentLikesList = mutableReceivedLikesList?.toList()
-//                                }
-//                                if (user != null) {
-//                                    isLiked = user?.receivedLikes?.contains(user!!.id) == true
-//                                }
-//                            }
-//                        }
-                        Box(modifier = Modifier.clickable {
-                            navController.navigate("userProfile/${currentUser?.id}") {
-//                                launchSingleTop = true
-//                                popUpTo(navController.graph.startDestinationId) {
-//                                    saveState = true
-//                                }
-                            }
-                        }) {
-                            if(!currentUser?.mediaOne.isNullOrBlank()) {
-                                Card(modifier = Modifier.height(240.dp)) {
-                                    Log.d(TAG, "The image is ${currentUser?.mediaOne}")
-                                    GlideImage(
-                                        model = currentUser?.mediaOne,
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentScale = ContentScale.Crop,
-                                        contentDescription = "mediaOne for liked user",
-                                        colorFilter = ColorFilter.colorMatrix(
-                                            ColorMatrix(
-                                                colorMatrix
+
+                            Box(modifier = Modifier.clickable {
+                                try {
+                                    navController.navigate("userProfile/${currentUser?.id}") {
+                                        launchSingleTop = true
+                                        popUpTo(navController.graph.startDestinationId) {
+                                            saveState = true
+                                        }
+                                    }
+                                } catch (iae: IllegalArgumentException) {
+                                    Log.d("LikeScreen", "User's profile not reachable.")
+                                }
+                            }) {
+                                if (!currentUser?.mediaOne.isNullOrBlank()) {
+                                    Card(modifier = Modifier.height(240.dp)) {
+                                        Log.d(TAG, "The image is ${currentUser?.mediaOne}")
+                                        GlideImage(
+                                            model = currentUser?.mediaOne,
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop,
+                                            contentDescription = "mediaOne for liked user",
+                                            colorFilter = ColorFilter.colorMatrix(
+                                                ColorMatrix(
+                                                    colorMatrix
+                                                )
                                             )
                                         )
-                                    )
-                                }
-                            } else {
-                                Card(modifier = Modifier.height(240.dp)) {
-                                    Column(modifier = Modifier.fillMaxSize(),
-                                        verticalArrangement = Arrangement.Center,
-                                        horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Icon(
-                                            painterResource(id = R.drawable.no_image_svgrepo_com),
-                                            "No Image Icon",
-                                            modifier = Modifier
-                                                .height(80.dp)
-                                                .width(80.dp)
-                                                .padding(0.dp, 0.dp, 0.dp, 0.dp)
-                                        )
+                                    }
+                                } else {
+                                    Card(modifier = Modifier.height(240.dp)) {
+                                        Column(
+                                            modifier = Modifier.fillMaxSize(),
+                                            verticalArrangement = Arrangement.Center,
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Icon(
+                                                painterResource(id = R.drawable.no_image_svgrepo_com),
+                                                "No Image Icon",
+                                                modifier = Modifier
+                                                    .height(80.dp)
+                                                    .width(80.dp)
+                                                    .padding(0.dp, 0.dp, 0.dp, 0.dp)
+                                            )
+                                        }
                                     }
                                 }
-                            }
-                            //this code is for removing a like which you cannot do for received likes
+                                //this code is for removing a like which you cannot do for received likes
 //                            LaunchedEffect(
 //                                isLiked
 //                            ) {
@@ -567,56 +533,58 @@ fun LikeScreen(
 //                                    }
 //                                }
 //                            }
-                            Column(
-                                Modifier
-                                    .fillMaxSize()
-                                    .padding(8.dp)
-                                    .align(Alignment.BottomEnd)
-                            ) {
-                                Text(
-                                    modifier = Modifier.padding(bottom = 8.dp), // Add bottom padding to create space between the two text rows
-                                    text = "${currentUser?.displayName}, ${
-                                        currentUser?.birthday?.div(
-                                            31556952000
-                                        )
-                                    }",
-                                    fontSize = 16.sp,
-                                    style = androidx.compose.ui.text.TextStyle(
-                                        fontWeight = FontWeight.Medium
-                                    ),
-                                    color = Color.White
-                                )
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.LocationOn,
-                                        contentDescription = "Location Icon",
-                                        tint = Color.White,
-                                        modifier = Modifier
-                                            .size(8.dp) // Set the size of the icon to match the font size of the text
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    val yourLatitude = user?.latitude ?: 0.0
-                                    val yourLongitude = user?.longitude ?: 0.0
-                                    val thisLatitude = currentUser?.latitude ?: 0.0
-                                    val thisLongitude = currentUser?.longitude ?: 0.0
-                                    val distance = locationViewModel.calculateDistance(
-                                        yourLatitude,
-                                        yourLongitude,
-                                        thisLatitude,
-                                        thisLongitude
-                                    )
+                                Column(
+                                    Modifier
+                                        .fillMaxSize()
+                                        .padding(8.dp)
+                                        .align(Alignment.BottomEnd)
+                                ) {
                                     Text(
-                                        text = "${distance.toInt()} miles away",
+                                        modifier = Modifier.padding(bottom = 8.dp), // Add bottom padding to create space between the two text rows
+                                        text = "${currentUser?.displayName}, ${
+                                            currentUser?.birthday?.div(
+                                                31556952000
+                                            )
+                                        }",
                                         fontSize = 16.sp,
-                                        style = androidx.compose.ui.text.TextStyle(fontWeight = FontWeight.Medium),
+                                        style = androidx.compose.ui.text.TextStyle(
+                                            fontWeight = FontWeight.Medium
+                                        ),
                                         color = Color.White
                                     )
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.LocationOn,
+                                            contentDescription = "Location Icon",
+                                            tint = Color.White,
+                                            modifier = Modifier
+                                                .size(8.dp) // Set the size of the icon to match the font size of the text
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        val yourLatitude = user?.latitude ?: 0.0
+                                        val yourLongitude = user?.longitude ?: 0.0
+                                        val thisLatitude = currentUser?.latitude ?: 0.0
+                                        val thisLongitude = currentUser?.longitude ?: 0.0
+                                        val distance = locationViewModel.calculateDistance(
+                                            yourLatitude,
+                                            yourLongitude,
+                                            thisLatitude,
+                                            thisLongitude
+                                        )
+                                        Text(
+                                            text = "${distance.toInt()} miles away",
+                                            fontSize = 16.sp,
+                                            style = androidx.compose.ui.text.TextStyle(fontWeight = FontWeight.Medium),
+                                            color = Color.White
+                                        )
+                                    }
                                 }
                             }
-                        }
 
+                        }
                     }
                 }
+
             }
         }
     }

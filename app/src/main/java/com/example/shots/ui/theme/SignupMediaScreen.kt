@@ -70,7 +70,7 @@ import kotlinx.coroutines.launch
 fun SignupMediaScreen(
     navController: NavController,
     signupViewModel: SignupViewModel,
-    usersViewModel: UsersViewModel,
+    userViewModel: UserViewModel,
     dataStore: DataStore<Preferences>
 ) {
     val context = LocalContext.current
@@ -82,8 +82,6 @@ fun SignupMediaScreen(
     val firebaseStorage = FirebaseModule.provideStorage()
     val firebaseRepository =
         FirebaseModule.provideFirebaseRepository(firebaseAuth, firestore, firebaseStorage)
-    val editProfileViewModel =
-        ViewModelModule.provideEditProfileViewModel(firebaseRepository, firebaseAuth)
 
     val snackbarHostState = remember { SnackbarHostState() }
     var snackbarMessage by remember { mutableStateOf("") }
@@ -91,7 +89,7 @@ fun SignupMediaScreen(
     val scope = rememberCoroutineScope()
     var isFocused by remember { mutableStateOf(false) }
     var user by remember {
-        mutableStateOf(usersViewModel.getUser())
+        mutableStateOf(userViewModel.getUser())
     }
 
     val userData: MutableMap<String, Any> = mutableMapOf()
@@ -158,7 +156,7 @@ fun SignupMediaScreen(
         ) {
             LaunchedEffect(Unit) {
                 scope.launch {
-                    user = usersViewModel.getUser()
+                    user = userViewModel.getUser()
                     dataStore.edit { preferences ->
                         preferences[intPreferencesKey("currentScreen")] = 4
                     }
@@ -375,7 +373,7 @@ fun SignupMediaScreen(
                                     mediaOneWasClicked = false
                                     isEditingProfile = true
                                     isEditingMediaOne = true
-                                    usersViewModel.saveUserDataToFirebase(
+                                    userViewModel.saveUserDataToFirebase(
                                         user?.id ?: "",
                                         userData, mediaItems, context
                                     ) { wasSaved ->
@@ -484,12 +482,12 @@ fun SignupMediaScreen(
                                     "mediaTwoWasClicked = $mediaTwoWasClicked"
                                 )
                                 if (mediaTwoWasClicked) {
-                                    user = user?.copy(mediaTwo = mediaTwoState)
+                                    user = user.copy(mediaTwo = mediaTwoState)
                                     mediaItems["mediaTwo"] = mediaTwoState.toUri()
                                     mediaTwoWasClicked = false
                                     isEditingProfile = true
                                     isEditingMediaTwo = true
-                                    usersViewModel.saveUserDataToFirebase(
+                                    userViewModel.saveUserDataToFirebase(
                                         user?.id ?: "",
                                         userData, mediaItems, context
                                     ) { wasSaved ->
@@ -594,12 +592,12 @@ fun SignupMediaScreen(
                                 mediaThreeState
                             ) {
                                 if (mediaThreeWasClicked) {
-                                    user = user?.copy(mediaThree = mediaThreeState)
+                                    user = user.copy(mediaThree = mediaThreeState)
                                     mediaItems["mediaThree"] = mediaThreeState.toUri()
                                     mediaThreeWasClicked = false
                                     isEditingProfile = true
                                     isEditingMediaThree = true
-                                    usersViewModel.saveUserDataToFirebase(
+                                    userViewModel.saveUserDataToFirebase(
                                         user?.id ?: "",
                                         userData, mediaItems, context
                                     ) { wasSaved ->
@@ -752,12 +750,12 @@ fun SignupMediaScreen(
                                 mediaFourState
                             ) {
                                 if (mediaFourWasClicked) {
-                                    user = user?.copy(mediaFour = mediaFourState)
+                                    user = user.copy(mediaFour = mediaFourState)
                                     mediaItems["mediaFour"] = mediaFourState.toUri()
                                     mediaFourWasClicked = false
                                     isEditingProfile = true
                                     isEditingMediaFour = true
-                                    usersViewModel.saveUserDataToFirebase(
+                                    userViewModel.saveUserDataToFirebase(
                                         user?.id ?: "",
                                         userData, mediaItems, context
                                     ) { wasSaved ->
@@ -862,12 +860,12 @@ fun SignupMediaScreen(
                                 mediaFiveState
                             ) {
                                 if (mediaFiveWasClicked) {
-                                    user = user?.copy(mediaFive = mediaFiveState)
+                                    user = user.copy(mediaFive = mediaFiveState)
                                     mediaItems["mediaFive"] = mediaFiveState.toUri()
                                     mediaFiveWasClicked = false
                                     isEditingProfile = true
                                     isEditingMediaFive = true
-                                    usersViewModel.saveUserDataToFirebase(
+                                    userViewModel.saveUserDataToFirebase(
                                         user?.id ?: "",
                                         userData, mediaItems, context
                                     ) { wasSaved ->
@@ -972,12 +970,12 @@ fun SignupMediaScreen(
                                 mediaSixState
                             ) {
                                 if (mediaSixWasClicked) {
-                                    user = user?.copy(mediaSix = mediaSixState)
+                                    user = user.copy(mediaSix = mediaSixState)
                                     mediaItems["mediaSix"] = mediaSixState.toUri()
                                     mediaSixWasClicked = false
                                     isEditingProfile = true
                                     isEditingMediaSix = true
-                                    usersViewModel.saveUserDataToFirebase(
+                                    userViewModel.saveUserDataToFirebase(
                                         user?.id ?: "",
                                         userData, mediaItems, context
                                     ) { wasSaved ->
@@ -1140,12 +1138,12 @@ fun SignupMediaScreen(
                             ) {
                                 if (mediaSevenWasClicked) {
                                     isEditingProfile = true
-                                    user = user?.copy(mediaSeven = mediaSevenState)
+                                    user = user.copy(mediaSeven = mediaSevenState)
                                     mediaItems["mediaSeven"] = mediaSevenState.toUri()
                                     isEditingProfile = true
                                     isEditingMediaSeven = true
                                     mediaSevenWasClicked = false
-                                    usersViewModel.saveUserDataToFirebase(
+                                    userViewModel.saveUserDataToFirebase(
                                         user?.id ?: "",
                                         userData, mediaItems, context
                                     ) { wasSaved ->
@@ -1251,12 +1249,12 @@ fun SignupMediaScreen(
                                 mediaEightState
                             ) {
                                 if (mediaEightWasClicked) {
-                                    user = user?.copy(mediaEight = mediaEightState)
+                                    user = user.copy(mediaEight = mediaEightState)
                                     mediaItems["mediaEight"] = mediaEightState.toUri()
                                     mediaEightWasClicked = false
                                     isEditingMediaEight = true
                                     isEditingProfile = true
-                                    usersViewModel.saveUserDataToFirebase(
+                                    userViewModel.saveUserDataToFirebase(
                                         user?.id ?: "",
                                         userData, mediaItems, context
                                     ) { wasSaved ->
@@ -1363,12 +1361,12 @@ fun SignupMediaScreen(
                             ) {
                                 if (mediaNineWasClicked) {
                                     isEditingProfile = true
-                                    user = user?.copy(mediaNine = mediaNineState)
+                                    user = user.copy(mediaNine = mediaNineState)
                                     mediaItems["mediaNine"] = mediaNineState.toUri()
                                     mediaNineWasClicked = false
                                     isEditingMediaNine = true
                                     isEditingProfile = true
-                                    usersViewModel.saveUserDataToFirebase(
+                                    userViewModel.saveUserDataToFirebase(
                                         user?.id ?: "",
                                         userData, mediaItems, context
                                     ) { wasSaved ->
@@ -1401,11 +1399,11 @@ fun SignupMediaScreen(
                             ) {
                                 Log.d(
                                     TAG, "ProfileVideo Screen - User Values - " +
-                                            "${usersViewModel.getUser()}"
+                                            "${userViewModel.getUser()}"
                                 )
 //                                scope.launch {
 //                                    withContext(Dispatchers.IO) {
-//                                        val existingUser = usersViewModel.getUser()
+//                                        val existingUser = userViewModel.getUser()
 //                                        Log.d(
 //                                            TAG,
 //                                            "In age screen, the returned initial user is ${existingUser}"
@@ -1435,11 +1433,11 @@ fun SignupMediaScreen(
 //                                            "Finally, the user on age screen is - ${updatedExistingUser}"
 //                                        )
 //                                        if (updatedExistingUser != null) {
-//                                            usersViewModel.userDao.update(updatedExistingUser)
+//                                            userViewModel.userDao.update(updatedExistingUser)
 //                                        }
 //
 //                                        mediaItems["mediaOne"]
-//                                        usersViewModel.saveUserDataToFirebase(
+//                                        userViewModel.saveUserDataToFirebase(
 //                                            userId ?: "", userData,
 //                                            mediaItems, context
 //                                        ) {}

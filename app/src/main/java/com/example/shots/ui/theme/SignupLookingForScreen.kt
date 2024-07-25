@@ -46,8 +46,8 @@ fun SignupLookingForScreen(navController: NavController, signupViewModel: Signup
     val firebaseRepository =
         FirebaseModule.provideFirebaseRepository(firebaseAuth, firestore, firebaseStorage)
     val appDatabase = RoomModule.provideAppDatabase(LocalContext.current)
-    val usersViewModel = ViewModelModule.provideUsersViewModel(firebaseRepository, firebaseAuth,
-        appDatabase)
+//    val usersViewModel = ViewModelModule.provideUsersViewModel(firebaseRepository, firebaseAuth,
+//        appDatabase)
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     Scaffold(
@@ -146,7 +146,7 @@ fun SignupLookingForScreen(navController: NavController, signupViewModel: Signup
 ////                                navController.navigate()
 //                            }
 //                        }
-                        usersViewModel.getUser()?.link = linkState.value
+//                        usersViewModel.getUser()?.link = linkState.value
                     },
                     modifier = Modifier
                         .fillMaxWidth()

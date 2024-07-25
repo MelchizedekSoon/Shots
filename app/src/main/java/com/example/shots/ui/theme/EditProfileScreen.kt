@@ -9,7 +9,6 @@ import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -25,7 +24,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
@@ -49,8 +47,8 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -76,16 +74,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import androidx.navigation.NavController
-import coil.compose.rememberAsyncImagePainter
-import coil.request.ImageRequest
-import coil.transform.CircleCropTransformation
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
 import com.example.shots.FirebaseModule
 import com.example.shots.PromptsUtils
 import com.example.shots.R
-import com.example.shots.RoomModule
-import com.example.shots.ViewModelModule
 import com.example.shots.data.Drinking
 import com.example.shots.data.Education
 import com.example.shots.data.Exercise
@@ -96,13 +89,11 @@ import com.example.shots.data.Marijuana
 import com.example.shots.data.Pets
 import com.example.shots.data.Religion
 import com.example.shots.data.Smoking
-import com.example.shots.data.TypeOfMedia
 import com.example.shots.data.User
 import com.google.firebase.auth.FirebaseAuth
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.InternalCoroutinesApi
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import java.util.Calendar
+import kotlinx.coroutines.withContext
 
 object MediaIdentifiers {
     const val MEDIA_ONE = "mediaOne"
@@ -114,33 +105,29 @@ object MediaIdentifiers {
     const val MEDIA_SEVEN = "mediaSeven"
     const val MEDIA_EIGHT = "mediaEight"
     const val MEDIA_NINE = "mediaNine"
+    const val MEDIA_PROFILE_VIDEO = "mediaProfileVideo"
 }
 
 
 @OptIn(
     ExperimentalMaterial3Api::class,
-    ExperimentalMaterialApi::class,
-    InternalCoroutinesApi::class,
     ExperimentalGlideComposeApi::class
 )
 @Composable
-fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewModel) {
-    val context = LocalContext.current
-    val contentResolver = remember(context) { context.contentResolver }
-    var contentType by remember { mutableStateOf("") }
+fun EditProfileScreen(
+    navController: NavController, userViewModel: UserViewModel,
+    editProfileViewModel: EditProfileViewModel,
+) {
 
+    //  Adding this line was causing the values to restart and not update
+    //  editProfileViewModel.loadEditProfileOptions()
+
+    val context = LocalContext.current
 
     val firebaseAuth = FirebaseModule.provideFirebaseAuth()
-    val firestore = FirebaseModule.provideFirestore()
-    val firebaseStorage = FirebaseModule.provideStorage()
-    val firebaseRepository =
-        FirebaseModule.provideFirebaseRepository(firebaseAuth, firestore, firebaseStorage)
-    val editProfileViewModel: EditProfileViewModel =
-        ViewModelModule.provideEditProfileViewModel(firebaseRepository, firebaseAuth)
-    val appDatabase = RoomModule.provideAppDatabase(context)
-    val userDao = appDatabase.userDao()
-    var user by remember { mutableStateOf<User?>(usersViewModel.getUser()) }
-    var updatedUser by remember { mutableStateOf(usersViewModel.getUser()) }
+
+    val user by remember { mutableStateOf<User?>(userViewModel.fetchUser()) }
+
     var mediaOneWasClicked by remember { mutableStateOf(false) }
     var mediaTwoWasClicked by remember { mutableStateOf(false) }
     var mediaThreeWasClicked by remember { mutableStateOf(false) }
@@ -152,28 +139,17 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
     var mediaNineWasClicked by remember { mutableStateOf(false) }
     var mediaProfileVideoWasClicked by remember { mutableStateOf(false) }
 
+    val editProfileUiState by editProfileViewModel.uiState.collectAsState()
+
+    Log.d("EditProfileScreen", "userName = ${editProfileUiState.userName}")
+
     val scope = rememberCoroutineScope()
-
-    val userId = firebaseAuth.currentUser?.displayName ?: ""
-
-    var mediaProfileVideo by rememberSaveable {
-        mutableStateOf(
-            user?.mediaProfileVideo ?: ""
-        )
-    }
-
 
     val snackbarHostState = remember { SnackbarHostState() }
     var snackbarMessage by remember { mutableStateOf("") }
 
     val userData: MutableMap<String, Any> = mutableMapOf()
     val mediaItems: MutableMap<String, Uri> = mutableMapOf()
-
-
-    // Testing to see if the typeOfMediaOne will persist when made a mutableOf and
-    // returned via boolean
-    var typeOfMediaOneIsVideo by remember { mutableStateOf(false) }
-
 
     var focusRequester = remember { FocusRequester() }
     var keyboardController = LocalSoftwareKeyboardController.current
@@ -269,7 +245,7 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
 //                        val userId = firebaseAuth.currentUser?.displayName ?: ""
 //                        Log.d("EditProfileScreen", "userId = ${user?.id ?: ""}")
 //                        Log.d("EditProfileScreen", "currentUser = ${currentUser}")
-//                        val wasSaved = usersViewModel.saveUserDataToFirebase(
+//                        val wasSaved = userViewModel.saveUserDataToFirebase(
 //                            user?.id ?: "",
 //                            userData, mediaItems, context
 //                        ) { wasSaved ->
@@ -284,8 +260,8 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
 //                            }
 //                        }
 ////                        user?.let {
-////                            usersViewModel.updateUser(
-////                                it, usersViewModel, navController,
+////                            userViewModel.updateUser(
+////                                it, userViewModel, navController,
 ////                                context) {}
 ////                        }
 //                        scope.launch {
@@ -312,11 +288,16 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
             navigationIcon = {
                 IconButton(onClick = {
                     hasPressedBack = true
+                    Log.d(
+                        "EditProfileScreen", "displayName = ${
+                            editProfileUiState.displayName
+                        }"
+                    )
                 }) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back Icon")
                 }
             })
-    }) {
+    }) { it ->
         Modifier.padding(it)
         Box(
             modifier = Modifier
@@ -327,74 +308,68 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
             LazyColumn(
                 modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                item {
-                    val idState by rememberSaveable {
-                        mutableStateOf(
-                            user?.id ?: ""
-                        )
-                    }
-                    LaunchedEffect(idState) {
-                        if (idState.isNotBlank()) {
-                            usersViewModel.updateUserField { currentUser ->
-                                currentUser.copy(id = idState)
-                            }
-                            userData["id"] = idState
-                        }
-                    }
-                    val userNameState by rememberSaveable {
-                        mutableStateOf(
-                            user?.userName ?: ""
-                        )
-                    }
-                    LaunchedEffect(userNameState) {
-                        if (userNameState.isNotBlank()) {
-                            usersViewModel.updateUserField { currentUser ->
-                                currentUser.copy(userName = userNameState)
-                            }
-                            userData["userName"] = userNameState
-                        }
-                    }
-                    val birthdayState: Long by rememberSaveable {
-                        mutableLongStateOf(
-                            user?.birthday
-                                ?: Calendar.getInstance().timeInMillis
-                        )
-                    }
-                    LaunchedEffect(Unit) {
-                        // years = milliseconds ÷ 31,556,952,000
-                        Log.d(TAG, "Birthday is $birthdayState")
-                        usersViewModel.updateUserField { currentUser ->
-                            currentUser.copy(birthday = birthdayState)
-                        }
-                        userData["birthday"] = birthdayState
-                    }
-
-                }
+//                item {
+//                    val idState by rememberSaveable {
+//                        mutableStateOf(
+//                            user?.id ?: ""
+//                        )
+//                    }
+//                    LaunchedEffect(idState) {
+//                        if (idState.isNotBlank()) {
+//                            userViewModel.updateUserField { currentUser ->
+//                                currentUser.copy(id = idState)
+//                            }
+//                            userData["id"] = idState
+//                        }
+//                    }
+//                    val userNameState by rememberSaveable {
+//                        mutableStateOf(
+//                            user?.userName ?: ""
+//                        )
+//                    }
+//                    LaunchedEffect(userNameState) {
+//                        if (userNameState.isNotBlank()) {
+//                            userViewModel.updateUserField { currentUser ->
+//                                currentUser.copy(userName = userNameState)
+//                            }
+//                            userData["userName"] = userNameState
+//                        }
+//                    }
+//                    val birthdayState: Long by rememberSaveable {
+//                        mutableLongStateOf(
+//                            user?.birthday
+//                                ?: Calendar.getInstance().timeInMillis
+//                        )
+//                    }
+//                    LaunchedEffect(Unit) {
+//                        // years = milliseconds ÷ 31,556,952,000
+//                        Log.d(TAG, "Birthday is $birthdayState")
+//                        userViewModel.updateUserField { currentUser ->
+//                            currentUser.copy(birthday = birthdayState)
+//                        }
+//                        userData["birthday"] = birthdayState
+//                    }
+//
+//                }
                 item {
                     //MediaOne
                     var mediaOneState by rememberSaveable {
                         mutableStateOf(
-                            user?.mediaOne ?: ""
+                            editProfileUiState.mediaOne ?: ""
                         )
                     }
-                    var typeOfMediaOneState by rememberSaveable { mutableStateOf(user?.typeOfMediaOne) }
-
 
                     var mediaTwoState by rememberSaveable {
                         mutableStateOf(
-                            user?.mediaTwo ?: ""
+                            editProfileUiState.mediaTwo ?: ""
                         )
                     }
-                    var typeOfMediaTwoState
-                            by rememberSaveable { mutableStateOf(user?.typeOfMediaTwo) }
 
                     var mediaThreeState by rememberSaveable {
                         mutableStateOf(
-                            user?.mediaThree ?: ""
+                            editProfileUiState.mediaThree ?: ""
                         )
                     }
-                    var typeOfMediaThreeState
-                            by remember { mutableStateOf(user?.typeOfMediaThree) }
 
                     val pickMediaOne =
                         rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
@@ -415,7 +390,9 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                             }
                         }
                     Text(
-                        text = "Media (Slot One - Required)", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold
+                        text = "Media (Slot One - Required)",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.ExtraBold
                     )
                     Spacer(Modifier.height(8.dp))
                     Row {
@@ -496,7 +473,6 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                                             .clickable {
                                                 if (!isEditingProfile) {
                                                     mediaOneState = ""
-                                                    typeOfMediaOneState = TypeOfMedia.UNKNOWN
                                                     mediaOneWasClicked = true
                                                 }
                                             }
@@ -509,23 +485,28 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                             LaunchedEffect(
                                 mediaOneState
                             ) {
-                                Log.d(
-                                    "EditProfileScreen",
-                                    "mediaOneWasClicked = $mediaOneWasClicked"
-                                )
                                 if (mediaOneWasClicked) {
-                                    user = user?.copy(mediaOne = mediaOneState)
-                                    mediaItems["mediaOne"] = mediaOneState.toUri()
                                     mediaOneWasClicked = false
                                     isEditingProfile = true
                                     isEditingMediaOne = true
-                                    usersViewModel.saveUserDataToFirebase(
-                                        user?.id ?: "",
-                                        userData, mediaItems, context
+                                    editProfileViewModel.saveAndStoreMedia(
+                                        MediaIdentifiers.MEDIA_ONE,
+                                        mediaOneState,
+                                        context
                                     ) { wasSaved ->
                                         if (wasSaved) {
                                             isEditingProfile = false
                                             isEditingMediaOne = false
+                                        } else {
+                                            isEditingProfile = false
+                                            isEditingMediaOne = false
+
+                                            scope.launch {
+                                                withContext(Dispatchers.IO) {
+                                                    snackbarHostState.showSnackbar("Media One could not be saved.")
+                                                }
+                                            }
+
                                         }
                                     }
                                 }
@@ -610,7 +591,6 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                                             .clickable {
                                                 if (!isEditingProfile) {
                                                     mediaTwoState = ""
-                                                    typeOfMediaTwoState = TypeOfMedia.UNKNOWN
                                                     mediaTwoWasClicked = true
                                                 }
                                             }
@@ -623,23 +603,29 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                             LaunchedEffect(
                                 mediaTwoState
                             ) {
-                                Log.d(
-                                    "EditProfileScreen",
-                                    "mediaTwoWasClicked = $mediaTwoWasClicked"
-                                )
                                 if (mediaTwoWasClicked) {
-                                    user = user?.copy(mediaTwo = mediaTwoState)
                                     mediaItems["mediaTwo"] = mediaTwoState.toUri()
                                     mediaTwoWasClicked = false
                                     isEditingProfile = true
                                     isEditingMediaTwo = true
-                                    usersViewModel.saveUserDataToFirebase(
-                                        user?.id ?: "",
-                                        userData, mediaItems, context
+                                    editProfileViewModel.saveAndStoreMedia(
+                                        MediaIdentifiers.MEDIA_TWO,
+                                        mediaTwoState,
+                                        context
                                     ) { wasSaved ->
                                         if (wasSaved) {
                                             isEditingProfile = false
                                             isEditingMediaTwo = false
+                                        } else {
+                                            isEditingProfile = false
+                                            isEditingMediaTwo = false
+
+                                            scope.launch {
+                                                withContext(Dispatchers.IO) {
+                                                    snackbarHostState.showSnackbar("Media Two could not be saved.")
+                                                }
+                                            }
+
                                         }
                                     }
                                 }
@@ -724,7 +710,6 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                                             .clickable {
                                                 if (!isEditingProfile) {
                                                     mediaThreeState = ""
-                                                    typeOfMediaThreeState = TypeOfMedia.UNKNOWN
                                                     mediaThreeWasClicked = true
                                                 }
                                             }
@@ -738,18 +723,27 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                                 mediaThreeState
                             ) {
                                 if (mediaThreeWasClicked) {
-                                    user = user?.copy(mediaThree = mediaThreeState)
-                                    mediaItems["mediaThree"] = mediaThreeState.toUri()
                                     mediaThreeWasClicked = false
                                     isEditingProfile = true
                                     isEditingMediaThree = true
-                                    usersViewModel.saveUserDataToFirebase(
-                                        user?.id ?: "",
-                                        userData, mediaItems, context
+                                    editProfileViewModel.saveAndStoreMedia(
+                                        MediaIdentifiers.MEDIA_THREE,
+                                        mediaThreeState,
+                                        context
                                     ) { wasSaved ->
                                         if (wasSaved) {
                                             isEditingProfile = false
                                             isEditingMediaThree = false
+                                        } else {
+                                            isEditingProfile = false
+                                            isEditingMediaThree = false
+
+                                            scope.launch {
+                                                withContext(Dispatchers.IO) {
+                                                    snackbarHostState.showSnackbar("Media Three could not be saved.")
+                                                }
+                                            }
+
                                         }
                                     }
                                 }
@@ -761,28 +755,21 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                 item {
                     var mediaFourState by rememberSaveable {
                         mutableStateOf(
-                            user?.mediaFour ?: ""
+                            editProfileUiState.mediaFour ?: ""
                         )
                     }
-                    var typeOfMediaFourState
-                            by rememberSaveable { mutableStateOf(user?.typeOfMediaFour) }
 
                     var mediaFiveState by rememberSaveable {
                         mutableStateOf(
-                            user?.mediaFive ?: ""
+                            editProfileUiState.mediaFive ?: ""
                         )
                     }
-                    var typeOfMediaFiveState
-                            by rememberSaveable { mutableStateOf(user?.typeOfMediaFive) }
 
                     var mediaSixState by rememberSaveable {
                         mutableStateOf(
-                            user?.mediaSix ?: ""
+                            editProfileUiState.mediaSix ?: ""
                         )
                     }
-                    var typeOfMediaSixState
-                            by rememberSaveable { mutableStateOf(user?.typeOfMediaSix) }
-
 
                     val pickMediaFour =
                         rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
@@ -881,7 +868,6 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                                             .clickable {
                                                 if (!isEditingProfile) {
                                                     mediaFourState = ""
-                                                    typeOfMediaFourState = TypeOfMedia.UNKNOWN
                                                     mediaFourWasClicked = true
                                                 }
                                             }
@@ -895,18 +881,27 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                                 mediaFourState
                             ) {
                                 if (mediaFourWasClicked) {
-                                    user = user?.copy(mediaFour = mediaFourState)
-                                    mediaItems["mediaFour"] = mediaFourState.toUri()
                                     mediaFourWasClicked = false
                                     isEditingProfile = true
                                     isEditingMediaFour = true
-                                    usersViewModel.saveUserDataToFirebase(
-                                        user?.id ?: "",
-                                        userData, mediaItems, context
+                                    editProfileViewModel.saveAndStoreMedia(
+                                        MediaIdentifiers.MEDIA_FOUR,
+                                        mediaFourState,
+                                        context
                                     ) { wasSaved ->
                                         if (wasSaved) {
                                             isEditingProfile = false
                                             isEditingMediaFour = false
+                                        } else {
+                                            isEditingProfile = false
+                                            isEditingMediaFour = false
+
+                                            scope.launch {
+                                                withContext(Dispatchers.IO) {
+                                                    snackbarHostState.showSnackbar("Media Four could not be saved.")
+                                                }
+                                            }
+
                                         }
                                     }
                                 }
@@ -991,7 +986,6 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                                             .clickable {
                                                 if (!isEditingProfile) {
                                                     mediaFiveState = ""
-                                                    typeOfMediaFiveState = TypeOfMedia.UNKNOWN
                                                     mediaFiveWasClicked = true
                                                 }
                                             }
@@ -1005,18 +999,27 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                                 mediaFiveState
                             ) {
                                 if (mediaFiveWasClicked) {
-                                    user = user?.copy(mediaFive = mediaFiveState)
-                                    mediaItems["mediaFive"] = mediaFiveState.toUri()
                                     mediaFiveWasClicked = false
                                     isEditingProfile = true
                                     isEditingMediaFive = true
-                                    usersViewModel.saveUserDataToFirebase(
-                                        user?.id ?: "",
-                                        userData, mediaItems, context
+                                    editProfileViewModel.saveAndStoreMedia(
+                                        MediaIdentifiers.MEDIA_FIVE,
+                                        mediaFiveState,
+                                        context
                                     ) { wasSaved ->
                                         if (wasSaved) {
                                             isEditingProfile = false
                                             isEditingMediaFive = false
+                                        } else {
+                                            isEditingProfile = false
+                                            isEditingMediaFive = false
+
+                                            scope.launch {
+                                                withContext(Dispatchers.IO) {
+                                                    snackbarHostState.showSnackbar("Media Five could not be saved.")
+                                                }
+                                            }
+
                                         }
                                     }
                                 }
@@ -1101,7 +1104,6 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                                             .clickable {
                                                 if (!isEditingProfile) {
                                                     mediaSixState = ""
-                                                    typeOfMediaSixState = TypeOfMedia.UNKNOWN
                                                     mediaSixWasClicked = true
                                                 }
                                             }
@@ -1115,18 +1117,27 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                                 mediaSixState
                             ) {
                                 if (mediaSixWasClicked) {
-                                    user = user?.copy(mediaSix = mediaSixState)
-                                    mediaItems["mediaSix"] = mediaSixState.toUri()
                                     mediaSixWasClicked = false
                                     isEditingProfile = true
                                     isEditingMediaSix = true
-                                    usersViewModel.saveUserDataToFirebase(
-                                        user?.id ?: "",
-                                        userData, mediaItems, context
+                                    editProfileViewModel.saveAndStoreMedia(
+                                        MediaIdentifiers.MEDIA_SIX,
+                                        mediaSixState,
+                                        context
                                     ) { wasSaved ->
                                         if (wasSaved) {
                                             isEditingProfile = false
                                             isEditingMediaSix = false
+                                        } else {
+                                            isEditingProfile = false
+                                            isEditingMediaSix = false
+
+                                            scope.launch {
+                                                withContext(Dispatchers.IO) {
+                                                    snackbarHostState.showSnackbar("Media Six could not be saved.")
+                                                }
+                                            }
+
                                         }
                                     }
                                 }
@@ -1138,37 +1149,21 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                 item {
                     var mediaSevenState by rememberSaveable {
                         mutableStateOf(
-                            user?.mediaSeven ?: ""
+                            editProfileUiState.mediaSeven ?: ""
                         )
                     }
-                    var typeOfMediaSevenState
-                            by rememberSaveable {
-                                mutableStateOf(
-                                    user?.typeOfMediaSeven
-                                )
-                            }
+
                     var mediaEightState by rememberSaveable {
                         mutableStateOf(
-                            user?.mediaEight ?: ""
+                            editProfileUiState.mediaEight ?: ""
                         )
                     }
-                    var typeOfMediaEightState
-                            by rememberSaveable {
-                                mutableStateOf(
-                                    user?.typeOfMediaEight
-                                )
-                            }
+
                     var mediaNineState by rememberSaveable {
                         mutableStateOf(
-                            user?.mediaNine ?: ""
+                            editProfileUiState.mediaNine ?: ""
                         )
                     }
-                    var typeOfMediaNineState
-                            by rememberSaveable {
-                                mutableStateOf(
-                                    user?.typeOfMediaNine
-                                )
-                            }
 
                     val pickMediaSeven =
                         rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
@@ -1176,6 +1171,7 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                                 mediaSevenState = uri.toString()
                             }
                         }
+
                     val pickMediaEight =
                         rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
                             if (uri != null) {
@@ -1267,7 +1263,6 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                                             .clickable {
                                                 if (!isEditingProfile) {
                                                     mediaSevenState = ""
-                                                    typeOfMediaSevenState = TypeOfMedia.UNKNOWN
                                                     mediaSevenWasClicked = true
                                                 }
                                             }
@@ -1281,20 +1276,27 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                                 mediaSevenState
                             ) {
                                 if (mediaSevenWasClicked) {
-                                    isEditingProfile = true
-                                    user = user?.copy(mediaSeven = mediaSevenState)
-                                    mediaItems["mediaSeven"] = mediaSevenState.toUri()
+                                    mediaSevenWasClicked = false
                                     isEditingProfile = true
                                     isEditingMediaSeven = true
-                                    mediaSevenWasClicked = false
-                                    usersViewModel.saveUserDataToFirebase(
-                                        user?.id ?: "",
-                                        userData, mediaItems, context
+                                    editProfileViewModel.saveAndStoreMedia(
+                                        MediaIdentifiers.MEDIA_SEVEN,
+                                        mediaSevenState,
+                                        context
                                     ) { wasSaved ->
                                         if (wasSaved) {
                                             isEditingProfile = false
                                             isEditingMediaSeven = false
-                                            mediaSevenWasClicked = false
+                                        } else {
+                                            isEditingProfile = false
+                                            isEditingMediaSeven = false
+
+                                            scope.launch {
+                                                withContext(Dispatchers.IO) {
+                                                    snackbarHostState.showSnackbar("Media Seven could not be saved.")
+                                                }
+                                            }
+
                                         }
                                     }
                                 }
@@ -1379,7 +1381,6 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                                             .clickable {
                                                 if (!isEditingProfile) {
                                                     mediaEightState = ""
-                                                    typeOfMediaEightState = TypeOfMedia.UNKNOWN
                                                     mediaEightWasClicked = true
                                                 }
                                             }
@@ -1393,19 +1394,27 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                                 mediaEightState
                             ) {
                                 if (mediaEightWasClicked) {
-                                    user = user?.copy(mediaEight = mediaEightState)
-                                    mediaItems["mediaEight"] = mediaEightState.toUri()
                                     mediaEightWasClicked = false
-                                    isEditingMediaEight = true
                                     isEditingProfile = true
-                                    usersViewModel.saveUserDataToFirebase(
-                                        user?.id ?: "",
-                                        userData, mediaItems, context
+                                    isEditingMediaEight = true
+                                    editProfileViewModel.saveAndStoreMedia(
+                                        MediaIdentifiers.MEDIA_EIGHT,
+                                        mediaEightState,
+                                        context
                                     ) { wasSaved ->
                                         if (wasSaved) {
                                             isEditingProfile = false
                                             isEditingMediaEight = false
-                                            mediaEightWasClicked = false
+                                        } else {
+                                            isEditingProfile = false
+                                            isEditingMediaEight = false
+
+                                            scope.launch {
+                                                withContext(Dispatchers.IO) {
+                                                    snackbarHostState.showSnackbar("Media Eight could not be saved.")
+                                                }
+                                            }
+
                                         }
                                     }
                                 }
@@ -1490,7 +1499,6 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                                             .clickable {
                                                 if (!isEditingProfile) {
                                                     mediaNineState = ""
-                                                    typeOfMediaNineState = TypeOfMedia.UNKNOWN
                                                     mediaNineWasClicked = true
                                                 }
                                             }
@@ -1504,19 +1512,27 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                                 mediaNineState
                             ) {
                                 if (mediaNineWasClicked) {
-                                    isEditingProfile = true
-                                    user = user?.copy(mediaNine = mediaNineState)
-                                    mediaItems["mediaNine"] = mediaNineState.toUri()
                                     mediaNineWasClicked = false
-                                    isEditingMediaNine = true
                                     isEditingProfile = true
-                                    usersViewModel.saveUserDataToFirebase(
-                                        user?.id ?: "",
-                                        userData, mediaItems, context
+                                    isEditingMediaNine = true
+                                    editProfileViewModel.saveAndStoreMedia(
+                                        MediaIdentifiers.MEDIA_NINE,
+                                        mediaNineState,
+                                        context
                                     ) { wasSaved ->
                                         if (wasSaved) {
                                             isEditingProfile = false
                                             isEditingMediaNine = false
+                                        } else {
+                                            isEditingProfile = false
+                                            isEditingMediaNine = false
+
+                                            scope.launch {
+                                                withContext(Dispatchers.IO) {
+                                                    snackbarHostState.showSnackbar("Media Nine could not be saved.")
+                                                }
+                                            }
+
                                         }
                                     }
                                 }
@@ -1528,15 +1544,9 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                 item {
                     var mediaProfileVideoState by rememberSaveable {
                         mutableStateOf(
-                            user?.mediaProfileVideo ?: ""
+                            editProfileUiState?.mediaProfileVideo ?: ""
                         )
                     }
-                    var typeOfMediaProfileVideoState by rememberSaveable {
-                        mutableStateOf(
-                            user?.typeOfMediaProfileVideo
-                        )
-                    }
-                    var isPlayingProfileVideo by rememberSaveable { mutableStateOf(false) }
 
                     /**For testing purpose right now I'll add a video
                     but this will be limited to only recorded videos, not uploaded
@@ -1550,7 +1560,9 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                         }
 
                     Text(
-                        text = "Profile Video (Required)", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold
+                        text = "Profile Video (Required)",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.ExtraBold
                     )
                     Spacer(Modifier.height(8.dp))
                     Card(
@@ -1629,7 +1641,6 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                                         .clickable {
                                             if (isEditingMediaProfileVideo || !isEditingProfile) {
                                                 mediaProfileVideoState = ""
-                                                typeOfMediaProfileVideoState = TypeOfMedia.UNKNOWN
                                                 mediaProfileVideoWasClicked = true
                                             }
                                         }
@@ -1639,24 +1650,31 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                                 }
                             }
                         }
-
                         LaunchedEffect(
                             mediaProfileVideoState
                         ) {
                             if (mediaProfileVideoWasClicked) {
-                                isEditingProfile = true
-                                user = user?.copy(mediaProfileVideo = mediaProfileVideoState)
-                                mediaItems["mediaProfileVideo"] = mediaProfileVideoState.toUri()
                                 mediaProfileVideoWasClicked = false
+                                isEditingProfile = true
                                 isEditingMediaProfileVideo = true
-                                usersViewModel.saveUserDataToFirebase(
-                                    user?.id ?: "",
-                                    userData, mediaItems, context
+                                editProfileViewModel.saveAndStoreMedia(
+                                    MediaIdentifiers.MEDIA_PROFILE_VIDEO,
+                                    mediaProfileVideoState,
+                                    context
                                 ) { wasSaved ->
                                     if (wasSaved) {
                                         isEditingProfile = false
                                         isEditingMediaProfileVideo = false
-                                        mediaProfileVideoWasClicked = false
+                                    } else {
+                                        isEditingProfile = false
+                                        isEditingMediaProfileVideo = false
+
+                                        scope.launch {
+                                            withContext(Dispatchers.IO) {
+                                                snackbarHostState.showSnackbar("Media Profile Video could not be saved.")
+                                            }
+                                        }
+
                                     }
                                 }
                             }
@@ -1667,11 +1685,13 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                 item {
                     var displayNameState by rememberSaveable {
                         mutableStateOf(
-                            user?.displayName ?: ""
+                            editProfileUiState.displayName ?: ""
                         )
                     }
                     Text(
-                        text = "Display Name (Required)", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold
+                        text = "Display Name (Required)",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.ExtraBold
                     )
                     Spacer(Modifier.height(8.dp))
                     Card {
@@ -1688,7 +1708,7 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
 //                        }
                         TextField(value = displayNameState,
                             onValueChange = { newValue ->
-                                if (newValue.length <= 500) {
+                                if (newValue.length <= 15) {
                                     displayNameState = newValue
                                 }
                             },
@@ -1718,15 +1738,14 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                             }
                         }
                         LaunchedEffect(displayNameState) {
-                            userData["displayName"] = displayNameState
-                            user = user?.copy(displayName = displayNameState)
+                            editProfileViewModel.updateDisplayName(displayNameState)
                         }
                     }
                 }
                 item {
                     var aboutMeState by rememberSaveable {
                         mutableStateOf(
-                            user?.aboutMe ?: ""
+                            editProfileUiState.aboutMe ?: ""
                         )
                     }
                     Text(
@@ -1779,11 +1798,7 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
 
                     }
                     LaunchedEffect(aboutMeState) {
-                        usersViewModel.updateUserField { currentUser ->
-                            currentUser.copy(aboutMe = aboutMeState)
-                        }
-                        userData["aboutMe"] = aboutMeState
-                        user = user?.copy(aboutMe = aboutMeState)
+                        editProfileViewModel.updateAboutMe(aboutMeState)
                     }
                 }
                 item {
@@ -1799,33 +1814,33 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                     val keyboardController = LocalSoftwareKeyboardController.current
                     var promptOneSelection by rememberSaveable {
                         mutableStateOf(
-                            user?.promptOneQuestion ?: ""
+                            editProfileUiState.promptOneQuestion ?: ""
                         )
                     }
                     var promptOneExpanded by remember { mutableStateOf(false) }
                     var promptOneAnswerState by rememberSaveable {
                         mutableStateOf(
-                            user?.promptOneAnswer ?: ""
+                            editProfileUiState.promptOneAnswer ?: ""
                         )
                     }
                     var promptTwoSelection by rememberSaveable {
-                        mutableStateOf(user?.promptTwoQuestion ?: "")
+                        mutableStateOf(editProfileUiState.promptTwoQuestion ?: "")
                     }
                     var promptTwoExpanded by remember { mutableStateOf(false) }
                     var promptTwoAnswerState by rememberSaveable {
                         mutableStateOf(
-                            user?.promptTwoAnswer ?: ""
+                            editProfileUiState.promptTwoAnswer ?: ""
                         )
                     }
                     var promptThreeSelection by rememberSaveable {
                         mutableStateOf(
-                            user?.promptThreeQuestion ?: ""
+                            editProfileUiState.promptThreeQuestion ?: ""
                         )
                     }
                     var promptThreeExpanded by remember { mutableStateOf(false) }
                     var promptThreeAnswerState by rememberSaveable {
                         mutableStateOf(
-                            user?.promptThreeAnswer ?: ""
+                            editProfileUiState.promptThreeAnswer ?: ""
                         )
                     }
 
@@ -1900,12 +1915,7 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                                 }
                             }
                             LaunchedEffect(promptOneSelection) {
-//                                usersViewModel.updateUserField { currentUser ->
-//                                    currentUser.copy(promptOneQuestion = promptOneSelection)
-//                                }
-                                userData["promptOneQuestion"] =
-                                    promptOneSelection
-                                user = user?.copy(promptOneQuestion = promptOneSelection)
+                                editProfileViewModel.updatePromptOneQuestion(promptOneSelection)
                             }
                         }
                     }
@@ -1945,12 +1955,7 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                             }
                         }
                         LaunchedEffect(promptOneAnswerState) {
-                            usersViewModel.updateUserField { currentUser ->
-                                currentUser.copy(promptOneAnswer = promptOneAnswerState)
-                            }
-                            userData["promptOneAnswer"] =
-                                promptOneAnswerState
-                            user = user?.copy(promptOneAnswer = promptOneAnswerState)
+                            editProfileViewModel.updatePromptOneAnswer(promptOneAnswerState)
                         }
                     }
                     //promptOne ends
@@ -2026,12 +2031,7 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                             }
                         }
                         LaunchedEffect(promptTwoSelection) {
-                            usersViewModel.updateUserField { currentUser ->
-                                currentUser.copy(promptTwoQuestion = promptTwoSelection)
-                            }
-                            userData["promptTwoQuestion"] =
-                                promptTwoSelection
-                            user = user?.copy(promptTwoQuestion = promptTwoSelection)
+                            editProfileViewModel.updatePromptTwoQuestion(promptTwoSelection)
                         }
                     }
 
@@ -2070,12 +2070,7 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                             }
                         }
                         LaunchedEffect(promptTwoAnswerState) {
-                            usersViewModel.updateUserField { currentUser ->
-                                currentUser.copy(promptTwoAnswer = promptTwoAnswerState)
-                            }
-                            userData["promptTwoAnswer"] =
-                                promptTwoAnswerState
-                            user = user?.copy(promptTwoAnswer = promptTwoAnswerState)
+                            editProfileViewModel.updatePromptTwoAnswer(promptTwoAnswerState)
                         }
                     }
 
@@ -2152,12 +2147,7 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                             }
                         }
                         LaunchedEffect(promptThreeSelection) {
-                            usersViewModel.updateUserField { currentUser ->
-                                currentUser.copy(promptThreeQuestion = promptThreeSelection)
-                            }
-                            userData["promptThreeQuestion"] =
-                                promptThreeSelection
-                            user = user?.copy(promptThreeQuestion = promptThreeSelection)
+                            editProfileViewModel.updatePromptThreeQuestion(promptThreeSelection)
                         }
                     }
 
@@ -2196,12 +2186,7 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                             }
                         }
                         LaunchedEffect(promptThreeAnswerState) {
-                            usersViewModel.updateUserField { currentUser ->
-                                currentUser.copy(promptThreeAnswer = promptThreeAnswerState)
-                            }
-                            userData["promptThreeAnswer"] =
-                                promptThreeAnswerState
-                            user = user?.copy(promptThreeAnswer = promptThreeAnswerState)
+                            editProfileViewModel.updatePromptThreeAnswer(promptThreeAnswerState)
                         }
                     }
 
@@ -2523,7 +2508,7 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                     keyboardController = LocalSoftwareKeyboardController.current
                     var linkState by rememberSaveable {
                         mutableStateOf(
-                            user?.link ?: ""
+                            editProfileUiState.link ?: ""
                         )
                     }
                     Text(
@@ -2573,16 +2558,8 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                                 }
                             }
                         }
-                        Log.d(TAG, "linkState right before saving is ${linkState}")
                         LaunchedEffect(linkState) {
-                            if (linkState.isNotBlank()) {
-                                usersViewModel.updateUserField { currentUser ->
-                                    currentUser.copy(link = linkState)
-                                }
-                                userData["link"] = linkState
-                                user = user?.copy(link = linkState)
-                            }
-                            Log.d(TAG, "linkState after possibly adding is - ${linkState}")
+                            editProfileViewModel.updateLink(linkState)
                         }
                     }
                 }
@@ -2595,7 +2572,7 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                     var lookingForExpanded by remember { mutableStateOf(false) }
                     var lookingForStoredOption by rememberSaveable {
                         mutableStateOf(
-                            when (user?.lookingFor) {
+                            when (editProfileUiState.lookingFor) {
                                 LookingFor.LONG_TERM -> "LONG_TERM"
                                 LookingFor.LONG_TERM_BUT_OPEN_MINDED -> "LONG_TERM_BUT_OPEN_MINDED"
                                 LookingFor.SHORT_TERM -> "SHORT_TERM"
@@ -2708,24 +2685,8 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                                         })
                                     }
                                     LaunchedEffect(lookingForStoredOption) {
-                                        usersViewModel.updateUserField { currentUser ->
-                                            currentUser.copy(
-                                                lookingFor = when (lookingForStoredOption) {
-                                                    "LONG_TERM" -> LookingFor.LONG_TERM
-                                                    "SHORT_TERM" -> LookingFor.SHORT_TERM
-                                                    "LONG_TERM_BUT_OPEN_MINDED" -> LookingFor.LONG_TERM_BUT_OPEN_MINDED
-                                                    "SHORT_TERM_BUT_OPEN_MINDED" -> LookingFor.SHORT_TERM_BUT_OPEN_MINDED
-                                                    "FRIENDS" -> LookingFor.FRIENDS
-                                                    "UNSURE" -> LookingFor.UNSURE
-                                                    else -> LookingFor.UNKNOWN
-                                                }
-                                            )
-                                        }
-                                        userData["lookingFor"] =
-                                            lookingForStoredOption
-
-                                        user = user?.copy(
-                                            lookingFor = when (lookingForStoredOption) {
+                                        editProfileViewModel.updateLookingFor(
+                                            when (lookingForStoredOption) {
                                                 "LONG_TERM" -> LookingFor.LONG_TERM
                                                 "SHORT_TERM" -> LookingFor.SHORT_TERM
                                                 "LONG_TERM_BUT_OPEN_MINDED" -> LookingFor.LONG_TERM_BUT_OPEN_MINDED
@@ -2743,14 +2704,16 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                 }
                 item {
                     Text(
-                        text = "Gender (Required)", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold
+                        text = "Gender (Required)",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.ExtraBold
                     )
                 }
                 item {
                     var genderExpanded by remember { mutableStateOf(false) }
                     var genderStoredOption by rememberSaveable {
                         mutableStateOf(
-                            when (user?.gender) {
+                            when (editProfileUiState.gender) {
                                 Gender.MAN -> "MAN"
                                 Gender.WOMAN -> "WOMAN"
                                 Gender.NON_BINARY -> "NON_BINARY"
@@ -2837,19 +2800,8 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                                         })
                                     }
                                     LaunchedEffect(genderStoredOption) {
-                                        usersViewModel.updateUserField { currentUser ->
-                                            currentUser.copy(
-                                                gender = when (genderStoredOption) {
-                                                    "MAN" -> Gender.MAN
-                                                    "WOMAN" -> Gender.WOMAN
-                                                    "NON_BINARY" -> Gender.NON_BINARY
-                                                    else -> Gender.UNKNOWN
-                                                }
-                                            )
-                                        }
-                                        userData["gender"] = genderStoredOption
-                                        user = user?.copy(
-                                            gender = when (genderStoredOption) {
+                                        editProfileViewModel.updateGender(
+                                            when (genderStoredOption) {
                                                 "MAN" -> Gender.MAN
                                                 "WOMAN" -> Gender.WOMAN
                                                 "NON_BINARY" -> Gender.NON_BINARY
@@ -3036,7 +2988,7 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                 }
                 item {
                     var heightState by rememberSaveable {
-                        mutableStateOf(user?.height ?: "")
+                        mutableStateOf(editProfileUiState.height ?: "")
                     }
                     val heightAdded = rememberSaveable { mutableStateOf(false) }
                     Box() {
@@ -3209,11 +3161,7 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                                         }
                                     }
                                     LaunchedEffect(heightState) {
-                                        usersViewModel.updateUserField { currentUser ->
-                                            currentUser.copy(height = heightState)
-                                        }
-                                        userData["height"] = heightState
-                                        user = user?.copy(height = heightState)
+                                        editProfileViewModel.updateHeight(heightState)
                                     }
                                 }
                             }
@@ -3231,13 +3179,13 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                     val workAdded = rememberSaveable { mutableStateOf(false) }
                     var workState by rememberSaveable {
                         mutableStateOf(
-                            user?.work ?: ""
+                            editProfileUiState.work ?: ""
                         )
                     }
                     var educationExpanded by remember { mutableStateOf(false) }
                     var educationStoredOption by rememberSaveable {
                         mutableStateOf(
-                            when (user?.education) {
+                            when (editProfileUiState.education) {
                                 Education.SOME_HIGH_SCHOOL -> "SOME_HIGH_SCHOOL"
                                 Education.HIGH_SCHOOL -> "HIGH_SCHOOL"
                                 Education.SOME_COLLEGE -> "SOME_COLLEGE"
@@ -3267,7 +3215,7 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                     var kidsExpanded by remember { mutableStateOf(false) }
                     var kidsStoredOption by rememberSaveable {
                         mutableStateOf(
-                            when (user?.kids) {
+                            when (editProfileUiState.kids) {
                                 Kids.ONE_DAY -> "ONE_DAY"
                                 Kids.DONT_WANT -> "DONT_WANT"
                                 Kids.HAVE_AND_WANT_MORE -> "HAVE_AND_WANT_MORE"
@@ -3292,12 +3240,13 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                     var religionExpanded by remember { mutableStateOf(false) }
                     var religionStoredOption by rememberSaveable {
                         mutableStateOf(
-                            when (user?.religion) {
+                            when (editProfileUiState.religion) {
                                 Religion.CHRISTIANITY -> "CHRISTIANITY"
                                 Religion.ISLAM -> "ISLAM"
                                 Religion.HINDUISM -> "HINDUISM"
                                 Religion.BUDDHISM -> "BUDDHISM"
                                 Religion.SIKHISM -> "SIKHISM"
+                                Religion.JUDAISM -> "JUDAISM"
                                 Religion.BAHAI_FAITH -> "BAHAI_FAITH"
                                 Religion.CONFUCIANISM -> "CONFUCIANISM"
                                 Religion.JAINISM -> "JAINISM"
@@ -3314,6 +3263,7 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                                 "HINDUISM" -> "Hinduism"
                                 "BUDDHISM" -> "Buddhism"
                                 "SIKHISM" -> "Sikhism"
+                                "JUDAISM" -> "Judaism"
                                 "BAHAI_FAITH" -> "Baháʼí Faith"
                                 "CONFUCIANISM" -> "Confucianism"
                                 "JAINISM" -> "Jainism"
@@ -3326,7 +3276,7 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                     var petsStoredOption by
                     rememberSaveable {
                         mutableStateOf(
-                            when (user?.pets) {
+                            when (editProfileUiState.pets) {
                                 Pets.DOG -> "DOG"
                                 Pets.CAT -> "CAT"
                                 Pets.FISH -> "FISH"
@@ -3474,11 +3424,7 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                                         }
                                     }
                                     LaunchedEffect(workState) {
-                                        usersViewModel.updateUserField { currentUser ->
-                                            currentUser.copy(work = workState)
-                                        }
-                                        userData["work"] = workState
-                                        user = user?.copy(work = workState)
+                                        editProfileViewModel.updateWork(workState)
                                     }
                                 }
                             }
@@ -3575,24 +3521,8 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                                             })
                                     }
                                     LaunchedEffect(educationStoredOption) {
-                                        usersViewModel.updateUserField { currentUser ->
-                                            currentUser.copy(
-                                                education =
-                                                when (educationStoredOption) {
-                                                    "SOME_HIGH_SCHOOL" -> Education.SOME_HIGH_SCHOOL
-                                                    "HIGH_SCHOOL" -> Education.HIGH_SCHOOL
-                                                    "SOME_COLLEGE" -> Education.SOME_COLLEGE
-                                                    "UNDERGRAD_DEGREE" -> Education.UNDERGRAD_DEGREE
-                                                    "SOME_GRAD_SCHOOL" -> Education.SOME_GRAD_SCHOOL
-                                                    "GRAD_DEGREE" -> Education.GRAD_DEGREE
-                                                    "TECH_TRADE_SCHOOL" -> Education.TECH_TRADE_SCHOOL
-                                                    else -> Education.UNKNOWN
-                                                }
-                                            )
-                                        }
-                                        userData["education"] = educationStoredOption
-                                        user = user?.copy(
-                                            education = when (educationStoredOption) {
+                                        editProfileViewModel.updateEducation(
+                                            when (educationStoredOption) {
                                                 "SOME_HIGH_SCHOOL" -> Education.SOME_HIGH_SCHOOL
                                                 "HIGH_SCHOOL" -> Education.HIGH_SCHOOL
                                                 "SOME_COLLEGE" -> Education.SOME_COLLEGE
@@ -3684,22 +3614,8 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                                         })
                                     }
                                     LaunchedEffect(kidsSelectedOption) {
-                                        usersViewModel.updateUserField { currentUser ->
-                                            currentUser.copy(
-                                                kids =
-                                                when (kidsStoredOption) {
-                                                    "ONE_DAY" -> Kids.ONE_DAY
-                                                    "DONT_WANT" -> Kids.DONT_WANT
-                                                    "HAVE_AND_WANT_MORE" -> Kids.HAVE_AND_WANT_MORE
-                                                    "HAVE_AND_DONT_WANT_MORE" -> Kids.HAVE_AND_DONT_WANT_MORE
-                                                    "UNSURE" -> Kids.UNSURE
-                                                    else -> Kids.UNKNOWN
-                                                }
-                                            )
-                                        }
-                                        userData["kids"] = kidsStoredOption
-                                        user = user?.copy(
-                                            kids = when (kidsStoredOption) {
+                                        editProfileViewModel.updateKids(
+                                            when (kidsStoredOption) {
                                                 "ONE_DAY" -> Kids.ONE_DAY
                                                 "DONT_WANT" -> Kids.DONT_WANT
                                                 "HAVE_AND_WANT_MORE" -> Kids.HAVE_AND_WANT_MORE
@@ -3815,34 +3731,15 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                                         })
                                     }
                                     LaunchedEffect(religionStoredOption) {
-                                        usersViewModel.updateUserField { currentUser ->
-                                            currentUser.copy(
-                                                religion =
-                                                when (religionStoredOption) {
-                                                    "CHRISTIANITY" -> Religion.CHRISTIANITY
-                                                    "ISLAM" -> Religion.ISLAM
-                                                    "HINDIUSM" -> Religion.HINDUISM
-                                                    "BUDDHISM" -> Religion.BUDDHISM
-                                                    "SIKHISM" -> Religion.SIKHISM
-                                                    "JUDAISM" -> Religion.JUDAISM
-                                                    "BAHA'I FAITH" -> Religion.BAHAI_FAITH
-                                                    "CONFUCIANISM" -> Religion.CONFUCIANISM
-                                                    "JAINISM" -> Religion.JAINISM
-                                                    "SHINTOISM" -> Religion.SHINTOISM
-                                                    else -> Religion.UNKNOWN
-                                                }
-                                            )
-                                        }
-                                        userData["religion"] = religionStoredOption
-                                        user = user?.copy(
-                                            religion = when (religionStoredOption) {
+                                        editProfileViewModel.updateReligion(
+                                            when (religionStoredOption) {
                                                 "CHRISTIANITY" -> Religion.CHRISTIANITY
                                                 "ISLAM" -> Religion.ISLAM
-                                                "HINDIUSM" -> Religion.HINDUISM
+                                                "HINDUISM" -> Religion.HINDUISM
                                                 "BUDDHISM" -> Religion.BUDDHISM
                                                 "SIKHISM" -> Religion.SIKHISM
                                                 "JUDAISM" -> Religion.JUDAISM
-                                                "BAHA'I FAITH" -> Religion.BAHAI_FAITH
+                                                "BAHAI_FAITH" -> Religion.BAHAI_FAITH
                                                 "CONFUCIANISM" -> Religion.CONFUCIANISM
                                                 "JAINISM" -> Religion.JAINISM
                                                 "SHINTOISM" -> Religion.SHINTOISM
@@ -3943,25 +3840,8 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                                     }
                                     Spacer(modifier = Modifier.width(16.dp)) // Adjust the space as needed
                                     LaunchedEffect(petsStoredOption) {
-                                        usersViewModel.updateUserField { currentUser ->
-                                            currentUser.copy(
-                                                pets =
-                                                when (petsStoredOption) {
-                                                    "DOG" -> Pets.DOG
-                                                    "CAT" -> Pets.CAT
-                                                    "FISH" -> Pets.FISH
-                                                    "HAMSTER_OR_GUINEA_PIG" -> Pets.HAMSTER_OR_GUINEA_PIG
-                                                    "BIRD" -> Pets.BIRD
-                                                    "RABBIT" -> Pets.RABBIT
-                                                    "REPTILE" -> Pets.REPTILE
-                                                    "AMPHIBIAN" -> Pets.AMPHIBIAN
-                                                    else -> Pets.UNKNOWN
-                                                }
-                                            )
-                                        }
-                                        userData["pets"] = petsStoredOption
-                                        user = user?.copy(
-                                            pets = when (petsStoredOption) {
+                                        editProfileViewModel.updatePets(
+                                            when (petsStoredOption) {
                                                 "DOG" -> Pets.DOG
                                                 "CAT" -> Pets.CAT
                                                 "FISH" -> Pets.FISH
@@ -3990,7 +3870,7 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                     var exerciseStoredOption by
                     rememberSaveable {
                         mutableStateOf(
-                            when (user?.exercise) {
+                            when (editProfileUiState.exercise) {
                                 Exercise.OFTEN -> "OFTEN"
                                 Exercise.SOMETIMES -> "SOMETIMES"
                                 Exercise.RARELY -> "RARELY"
@@ -4003,7 +3883,7 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                         mutableStateOf(
                             when (exerciseStoredOption) {
                                 "OFTEN" -> "Often"
-                                "SOMETIMES" -> "Sometimes'"
+                                "SOMETIMES" -> "Sometimes"
                                 "RARELY" -> "Rarely"
                                 "NEVER" -> "Never"
                                 else -> ""
@@ -4015,7 +3895,7 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                     }
                     var smokingStoredOption by rememberSaveable {
                         mutableStateOf(
-                            when (user?.smoking) {
+                            when (editProfileUiState.smoking) {
                                 Smoking.YES -> "YES"
                                 Smoking.ON_OCCASION -> "ON_OCCASION"
                                 Smoking.NEVER_SMOKE -> "NEVER_SMOKE"
@@ -4038,7 +3918,7 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                     }
                     var drinkingStoredOption by rememberSaveable {
                         mutableStateOf(
-                            when (user?.drinking) {
+                            when (editProfileUiState.drinking) {
                                 Drinking.YES -> "YES"
                                 Drinking.ON_OCCASION -> "ON_OCCASION"
                                 Drinking.NEVER_DRINK -> "NEVER_DRINK"
@@ -4061,7 +3941,7 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                     }
                     var marijuanaStoredOption by rememberSaveable {
                         mutableStateOf(
-                            when (user?.marijuana) {
+                            when (editProfileUiState.marijuana) {
                                 Marijuana.YES -> "YES"
                                 Marijuana.ON_OCCASION -> "ON_OCCASION"
                                 Marijuana.NEVER -> "NEVER"
@@ -4144,20 +4024,8 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                             }
                             Spacer(modifier = Modifier.width(16.dp)) // Adjust the space as needed
                             LaunchedEffect(exerciseStoredOption) {
-                                usersViewModel.updateUserField { currentUser ->
-                                    currentUser.copy(
-                                        exercise = when (exerciseStoredOption) {
-                                            "OFTEN" -> Exercise.OFTEN
-                                            "SOMETIMES" -> Exercise.SOMETIMES
-                                            "RARELY" -> Exercise.RARELY
-                                            "NEVER" -> Exercise.NEVER
-                                            else -> Exercise.UNKNOWN
-                                        }
-                                    )
-                                }
-                                userData["exercise"] = exerciseStoredOption
-                                user = user?.copy(
-                                    exercise = when (exerciseStoredOption) {
+                                editProfileViewModel.updateExercise(
+                                    when (exerciseStoredOption) {
                                         "OFTEN" -> Exercise.OFTEN
                                         "SOMETIMES" -> Exercise.SOMETIMES
                                         "RARELY" -> Exercise.RARELY
@@ -4229,19 +4097,8 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                             }
                             Spacer(modifier = Modifier.width(16.dp)) // Adjust the space as needed
                             LaunchedEffect(smokingStoredOption) {
-                                usersViewModel.updateUserField { currentUser ->
-                                    currentUser.copy(
-                                        smoking = when (smokingStoredOption) {
-                                            "YES" -> Smoking.YES
-                                            "ON_OCCASION" -> Smoking.ON_OCCASION
-                                            "NEVER_SMOKE" -> Smoking.NEVER_SMOKE
-                                            else -> Smoking.UNKNOWN
-                                        }
-                                    )
-                                }
-                                userData["smoking"] = smokingStoredOption
-                                user = user?.copy(
-                                    smoking = when (smokingStoredOption) {
+                                editProfileViewModel.updateSmoking(
+                                    when (smokingStoredOption) {
                                         "YES" -> Smoking.YES
                                         "ON_OCCASION" -> Smoking.ON_OCCASION
                                         "NEVER_SMOKE" -> Smoking.NEVER_SMOKE
@@ -4310,19 +4167,8 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                             }
                             Spacer(modifier = Modifier.width(16.dp)) // Adjust the space as needed
                             LaunchedEffect(drinkingStoredOption) {
-//                                usersViewModel.updateUserField { currentUser ->
-//                                    currentUser.copy(
-//                                        drinking = when (drinkingStoredOption) {
-//                                            "YES" -> Drinking.YES
-//                                            "ON_OCCASION" -> Drinking.ON_OCCASION
-//                                            "NEVER_DRINK" -> Drinking.NEVER_DRINK
-//                                            else -> Drinking.UNKNOWN
-//                                        }
-//                                    )
-//                                }
-                                userData["drinking"] = drinkingStoredOption
-                                user = user?.copy(
-                                    drinking = when (drinkingStoredOption) {
+                                editProfileViewModel.updateDrinking(
+                                    when (drinkingStoredOption) {
                                         "YES" -> Drinking.YES
                                         "ON_OCCASION" -> Drinking.ON_OCCASION
                                         "NEVER_DRINK" -> Drinking.NEVER_DRINK
@@ -4393,19 +4239,8 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                             }
                             Spacer(modifier = Modifier.width(16.dp)) // Adjust the space as needed
                             LaunchedEffect(marijuanaStoredOption) {
-                                usersViewModel.updateUserField { currentUser ->
-                                    currentUser.copy(
-                                        marijuana = when (marijuanaStoredOption) {
-                                            "YES" -> Marijuana.YES
-                                            "ON_OCCASION" -> Marijuana.ON_OCCASION
-                                            "NEVER" -> Marijuana.NEVER
-                                            else -> Marijuana.UNKNOWN
-                                        }
-                                    )
-                                }
-                                userData["marijuana"] = marijuanaStoredOption
-                                user = user?.copy(
-                                    marijuana = when (marijuanaStoredOption) {
+                                editProfileViewModel.updateMarijuana(
+                                    when (marijuanaStoredOption) {
                                         "YES" -> Marijuana.YES
                                         "ON_OCCASION" -> Marijuana.ON_OCCASION
                                         "NEVER" -> Marijuana.NEVER
@@ -4436,173 +4271,19 @@ fun EditProfileScreen(navController: NavController, usersViewModel: UsersViewMod
                     Text(text = snackbarMessage)
                 }
             }
-//            Box(
-//                Modifier
-//                    .fillMaxSize()
-//                    .background(Color.Black.copy(alpha = 0.3f))
-//                    .pointerInput(Unit) {}
-//            ) {
-//                Box(modifier = Modifier.align(Alignment.Center)) {
-//                    Loader()
-//                }
-//                Text(
-//                    text = "Updating, please give us a few moments!", fontSize = 24.sp,
-//                    textAlign = TextAlign.Center,
-//                    color = Color.White,
-//                    modifier = Modifier
-//                        .padding(0.dp, 240.dp, 0.dp, 0.dp)
-//                        .align(Alignment.Center)
-//                    //padding originally 120
-//                )
-//            }
         }
 
         if (hasPressedBack) {
             HandleBackPress(
                 user, isEditingProfile, userData, firebaseAuth,
-                mediaItems, usersViewModel, context, navController, scope,
-                snackbarHostState, snackbarMessage, displayNameCallback
+                mediaItems, editProfileViewModel,
+                userViewModel, context, navController, displayNameCallback
             )
             hasPressedBack = false
         }
 
     }
 
-}
-
-
-val apiKey = "AIzaSyCaT4JkdeJYxUrFhcPkpMstmAdCziplvOk"
-
-//@Composable
-//fun AutocompleteFragment(onPlaceSelected: (Place) -> Unit) {
-//    val apiKey = "AIzaSyCaT4JkdeJYxUrFhcPkpMstmAdCziplvOk"
-//    val context = LocalContext.current
-//    val placesClient = remember(context) { Places.createClient(context) }
-//
-//    val autocompleteSessionToken = remember { AutocompleteSessionToken.newInstance() }
-//    val autocompleteRequest = remember {
-//        AutocompleteRequest.builder()
-//            .setSessionToken(autocompleteSessionToken)
-//            .build()
-//    }
-//
-//    val autocompleteState by remember { mutableStateOf(AutocompleteState()) }
-//
-//    LaunchedEffect(apiKey) {
-//        if (!Places.isInitialized()) {
-//            Places.initialize(LocalContext.current.applicationContext, apiKey)
-//        }
-//    }
-//
-//    LaunchedEffect(autocompleteSessionToken) {
-//        val response = placesClient.findAutocompletePredictions(autocompleteRequest)
-//        if (response.isSuccess) {
-//            val predictions = response.autocompletePredictions
-//            if (predictions.isNotEmpty()) {
-//                val placeId = predictions[0].placeId
-//                val placeFields = listOf(Field.ID, Field.NAME)
-//                val fetchPlaceRequest = FetchPlaceRequest.builder(placeId, placeFields).build()
-//                val fetchPlaceResponse = placesClient.fetchPlace(fetchPlaceRequest)
-//                if (fetchPlaceResponse.isSuccess) {
-//                    val place = fetchPlaceResponse.place
-//                    onPlaceSelected(place)
-//                } else {
-//                    // Handle fetch place failure
-//                }
-//            }
-//        } else {
-//            // Handle autocomplete failure
-//        }
-//    }
-//}
-
-
-//    private val httpClient = OkHttpClient()
-
-//    private suspend fun fetchCityAndStateSuggestions(query: String): List<String> {
-//        val apiKey = "YOUR_API_KEY"
-//        val url = "https://places.googleapis.com/v1/places:autocomplete?key=$apiKey"
-//
-//        val requestBody = """
-//        {
-//            "input": "$query",
-//            "types": ["(cities)"]
-//        }
-//    """.trimIndent()
-//
-//        val mediaType = "application/json".toTypeOfMedia
-//        ()
-//        val request =
-//            Request.Builder().url(url).post(RequestBody.create(mediaType, requestBody)).build()
-//
-//        return withContext(Dispatchers.IO) {
-//            val response = httpClient.newCall(request).execute()
-//            val responseData = response.body?.string()
-//
-//            val suggestions = mutableListOf<String>()
-//
-//            if (responseData != null) {
-//                try {
-//                    val json = JSONObject(responseData)
-//                    if (json.has("predictions")) {
-//                        val predictions = json.getJSONArray("predictions")
-//                        for (i in 0 until predictions.length()) {
-//                            val prediction = predictions.getJSONObject(i)
-//                            val description = prediction.getString("description")
-//                            suggestions.add(description)
-//                        }
-//                    }
-//                } catch (e: JSONException) {
-//                    e.printStackTrace()
-//                }
-//            }
-//
-//            suggestions
-//        }
-//    }
-
-// Perform autocomplete API request
-fun performAutocompleteRequest(input: String) {
-    val apiKey = "AIzaSyCaT4JkdeJYxUrFhcPkpMstmAdCziplvOk"
-    val apiUrl = "https://maps.googleapis.com/maps/api/place/autocomplete/json"
-
-    val url = "$apiUrl?input=$input&types=(cities)&key=$apiKey"
-
-    // Make an HTTP request to the API endpoint using your preferred networking library (e.g., Retrofit, OkHttp, etc.)
-    // Parse the API response and handle the suggestions
-    // Filter the suggestions for cities
-    // Update the UI with the city suggestions
-}
-
-// Handle text input changes
-fun onTextInputChanged(input: String) {
-    if (input.length >= 2) {
-        performAutocompleteRequest(input)
-    }
-}
-
-// Handle city selection
-fun onCitySelected(city: String) {
-    // Update the text input field with the selected city
-    // Perform further actions based on the selected city
-}
-
-@Composable
-fun LoadImageFromUri(uri: String) {
-    val painter = // Apply transformations if needed
-        rememberAsyncImagePainter(
-            ImageRequest.Builder(LocalContext.current).data(data = uri)
-                .apply<ImageRequest.Builder>(block = fun ImageRequest.Builder.() {
-                    transformations(CircleCropTransformation()) // Apply transformations if needed
-                }).build()
-        )
-
-    Image(
-        painter = painter,
-        contentDescription = null, // Provide an appropriate content description
-        modifier = Modifier.fillMaxSize(),
-        contentScale = ContentScale.FillBounds // Adjust content scale as needed
-    )
 }
 
 @Composable
@@ -4612,40 +4293,22 @@ fun HandleBackPress(
     userData: MutableMap<String, Any>,
     firebaseAuth: FirebaseAuth,
     mediaItems: MutableMap<String, Uri>,
-    usersViewModel: UsersViewModel,
+    editProfileViewModel: EditProfileViewModel,
+    userViewModel: UserViewModel,
     context: Context,
     navController: NavController,
-    scope: CoroutineScope,
-    snackbarHostState: SnackbarHostState,
-    snackbarMessage: String,
     displayNameCallback: () -> Unit
 ) {
     if (!isEditingProfile && user?.displayName?.isBlank() != true ||
         userData["displayName"].toString().isNotBlank()
     ) {
-
 //                        isEditingProfile = true
         val currentUser = firebaseAuth.currentUser
-        val userId = firebaseAuth.currentUser?.displayName ?: ""
         Log.d("EditProfileScreen", "userId = ${user?.id ?: ""}")
         Log.d("EditProfileScreen", "currentUser = ${currentUser}")
         mediaItems.clear()
-        val wasSaved = usersViewModel.saveUserDataToFirebase(
-            user?.id ?: "",
-            userData, mediaItems, context
-        ) { wasSaved ->
-            if (wasSaved) {
-//                                isEditingProfile = false
-                                navController.popBackStack()
-            }
-        }
-//                        user?.let {
-//                            usersViewModel.updateUser(
-//                                it, usersViewModel, navController,
-//                                context) {}
-//                        }
-//        navController.popBackStack()
-
+        val wasSaved = editProfileViewModel.saveAndStoreFields(context)
+        navController.popBackStack()
     } else {
         displayNameCallback()
     }

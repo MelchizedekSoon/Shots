@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.shots.GetStreamClientModule
@@ -20,7 +21,6 @@ import javax.inject.Inject
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val firebaseRepository: FirebaseRepository,
-    private val firestore: FirebaseFirestore
 ) : ViewModel() {
 
 //    private val _uiState = mutableStateOf<UiState>(UiState.Initial)
@@ -32,20 +32,39 @@ class AuthViewModel @Inject constructor(
 //        object AuthFailed : UiState()
 //    }
 
+    private val _emailText = mutableStateOf(TextFieldValue())
+    var emailText: State<TextFieldValue> = _emailText
+
+    private val _passwordText = mutableStateOf(TextFieldValue())
+    var passwordText: State<TextFieldValue> = _passwordText
+
+    suspend fun signIn(email: String, password: String) : FirebaseUser? {
+        Log.d("AuthViewModel", "signIn: $email")
+        return signInWithEmailAndPassword(email, password)
+    }
+
+    fun onEmailTextChanged(newText: String) {
+        _emailText.value = TextFieldValue(newText)
+    }
+
+    fun onPasswordTextChanged(newText: String) {
+        _passwordText.value = TextFieldValue(newText)
+    }
+
     // Function to handle authentication
-    suspend fun signInWithEmail(email: String, password: String): FirebaseUser? {
+    suspend fun signInWithEmailAndPassword(email: String, password: String): FirebaseUser? {
 //        var user: FirebaseUser? = null
         return try {
             val authResult = firebaseRepository.signInWithEmailPassword(email, password)
             if (authResult != null) {
-                Log.d(TAG, "User sign in successful: ${authResult.user}")
+                Log.d("AuthViewModel", "User sign in successful: ${authResult.user}")
                 authResult.user
             } else {
-                Log.e(TAG, "User sign in failed: Result is null")
+                Log.e("AuthViewModel", "User sign in failed: Result is null")
                 null
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error signing user", e)
+            Log.e("AuthViewModel", "Error signing user", e)
             null
         }
     }
@@ -57,14 +76,14 @@ class AuthViewModel @Inject constructor(
         return try {
             val authResult = firebaseRepository.createUserWithEmailAndPassword(email, password)
             if (authResult != null) {
-                Log.d(TAG, "User creation successful: ${authResult.user}")
+                Log.d("AuthViewModel", "User creation successful: ${authResult.user}")
                 authResult.user
             } else {
-                Log.e(TAG, "User creation failed: Result is null")
+                Log.e("AuthViewModel", "User creation failed: Result is null")
                 null
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error creating user", e)
+            Log.e("AuthViewModel", "Error creating user", e)
             null
         }
     }

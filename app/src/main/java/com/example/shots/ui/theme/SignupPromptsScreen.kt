@@ -74,7 +74,7 @@ import kotlinx.coroutines.withContext
 fun SignupPromptsScreen(
     navController: NavController,
     signupViewModel: SignupViewModel,
-    usersViewModel: UsersViewModel,
+    userViewModel: UserViewModel,
     dataStore: DataStore<Preferences>
 ) {
     val firebaseAuth = FirebaseModule.provideFirebaseAuth()
@@ -89,7 +89,7 @@ fun SignupPromptsScreen(
     var isGoingBack by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
 
-    val user by remember { mutableStateOf(usersViewModel.getUser()) }
+    val user by remember { mutableStateOf(userViewModel.getUser()) }
 
     val backCallback = object : OnBackPressedCallback(true) {
         override fun handleOnBackPressed() {
@@ -146,7 +146,7 @@ fun SignupPromptsScreen(
                             userData["promptThreeQuestion"] = ""
                             userData["promptThreeAnswer"] = ""
 
-                            usersViewModel.saveUserDataToFirebase(
+                            userViewModel.saveUserDataToFirebase(
                                 firebaseAuth.currentUser?.displayName ?: "", userData,
                                 mediaItems, context
                             ) {}
@@ -580,7 +580,7 @@ fun SignupPromptsScreen(
                         if (hasBeenChanged) {
                             scope.launch {
                                 withContext(Dispatchers.IO) {
-                                    val existingUser = usersViewModel.getUser()
+                                    val existingUser = userViewModel.getUser()
                                     val updatedExistingUser =
                                         existingUser?.copy(promptOneQuestion = promptOneSelection)
                                             ?.copy(promptOneAnswer = promptOneAnswerState)
@@ -588,15 +588,15 @@ fun SignupPromptsScreen(
                                             ?.copy(promptTwoAnswer = promptTwoAnswerState)
                                             ?.copy(promptThreeQuestion = promptThreeSelection)
                                             ?.copy(promptThreeAnswer = promptThreeAnswerState)
-                                    if (updatedExistingUser != null) {
-                                        usersViewModel.userDao.update(updatedExistingUser)
-                                    }
+//                                    if (updatedExistingUser != null) {
+//                                        userViewModel.userDao.update(updatedExistingUser)
+//                                    }
                                     val userId = user?.id ?: ""
                                     if (updatedExistingUser != null) {
                                         val userData: MutableMap<String, Any> = mutableMapOf()
                                         val mediaItems: MutableMap<String, Uri> = mutableMapOf()
                                         userData["aboutMe"] = updatedExistingUser.aboutMe ?: ""
-                                        usersViewModel.saveUserDataToFirebase(
+                                        userViewModel.saveUserDataToFirebase(
                                             userId ?: "", userData,
                                             mediaItems, context
                                         ) {

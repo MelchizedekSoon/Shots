@@ -70,7 +70,7 @@ import kotlinx.coroutines.withContext
 fun SignupDetailsScreen(
     navController: NavController,
     signupViewModel: SignupViewModel,
-    usersViewModel: UsersViewModel,
+    userViewModel: UserViewModel,
     dataStore: DataStore<Preferences>
 ) {
     val firebaseAuth = FirebaseModule.provideFirebaseAuth()
@@ -85,7 +85,7 @@ fun SignupDetailsScreen(
     var isGoingBack by rememberSaveable { mutableStateOf(false) }
     var context = LocalContext.current
 
-    var user by remember{ mutableStateOf(usersViewModel.getUser()) }
+    var user by remember{ mutableStateOf(userViewModel.getUser()) }
 
     val backCallback = object : OnBackPressedCallback(true) {
         override fun handleOnBackPressed() {
@@ -141,8 +141,8 @@ fun SignupDetailsScreen(
                                 userData["gender"] = "UNKNOWN"
                                 userData["height"] = ""
 
-                                val userId = user?.id ?: ""
-                                usersViewModel.saveUserDataToFirebase(
+                                var userId = user?.id ?: ""
+                                userViewModel.saveUserDataToFirebase(
                                     userId, userData,
                                     mediaItems, context
                                 ) {
@@ -827,7 +827,7 @@ fun SignupDetailsScreen(
                                         "Finally, the user on age screen is - ${updatedExistingUser}"
                                     )
                                     if (updatedExistingUser != null) {
-                                        usersViewModel.userDao.update(updatedExistingUser)
+//                                        userViewModel.userDao.update(updatedExistingUser)
                                     }
                                     val userId = firebaseAuth.currentUser?.displayName ?: ""
                                     if (updatedExistingUser != null) {
@@ -852,7 +852,7 @@ fun SignupDetailsScreen(
                                             }
                                         userData["height"] =
                                             updatedExistingUser.height ?: ""
-                                        usersViewModel.saveUserDataToFirebase(
+                                        userViewModel.saveUserDataToFirebase(
                                             userId ?: "", userData,
                                             mediaItems, context
                                         ) {

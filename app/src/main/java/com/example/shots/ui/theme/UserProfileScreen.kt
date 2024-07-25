@@ -4,12 +4,10 @@ import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
-import android.content.ContentValues.TAG
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
-import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -53,7 +51,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -83,13 +81,10 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import androidx.navigation.NavController
-import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.example.shots.FirebaseModule
 import com.example.shots.ProfileMediaDisplay
 import com.example.shots.R
 import com.example.shots.RoomModule
-import com.example.shots.ViewModelModule
-import com.example.shots.data.Bookmark
 import com.example.shots.data.Distance
 import com.example.shots.data.Drinking
 import com.example.shots.data.Education
@@ -105,17 +100,16 @@ import com.example.shots.data.User
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
 
 
 @OptIn(
-    ExperimentalMaterial3Api::class, ExperimentalGlideComposeApi::class
+    ExperimentalMaterial3Api::class
 )
 @Composable
 fun UserProfileScreen(
     navController: NavController,
     userId: String?,
-    usersViewModel: UsersViewModel,
+    userViewModel: UserViewModel,
     bookmarkViewModel: BookmarkViewModel,
     sentLikeViewModel: SentLikeViewModel,
     receivedLikeViewModel: ReceivedLikeViewModel,
@@ -126,28 +120,30 @@ fun UserProfileScreen(
     blockViewModel: BlockViewModel,
     dataStore: DataStore<Preferences>,
 ) {
+    userViewModel.loadYourUser()
+    userViewModel.loadUsers()
+    bookmarkViewModel.loadBookmarks()
+    sentLikeViewModel.loadSentLikes()
+
+    val yourUserUiState by userViewModel.user.collectAsState()
+
+    var user by remember { mutableStateOf<User?>(null) }
+    val bookmarkUiState by bookmarkViewModel.uiState.collectAsState()
+    val sentLikeUiState by sentLikeViewModel.uiState.collectAsState()
+    val receivedLikeUiState by receivedLikeViewModel.uiState.collectAsState()
+
     val firebaseAuth = FirebaseModule.provideFirebaseAuth()
     val firestore = FirebaseModule.provideFirestore()
     val firebaseStorage = FirebaseModule.provideStorage()
     val firebaseRepository =
         FirebaseModule.provideFirebaseRepository(firebaseAuth, firestore, firebaseStorage)
-    val editProfileViewModel =
-        ViewModelModule.provideEditProfileViewModel(firebaseRepository, firebaseAuth)
-    val appDatabase = RoomModule.provideAppDatabase(LocalContext.current)
-    val userDao = RoomModule.provideUserDao(appDatabase)
-    val bookmarkDao = RoomModule.provideBookmarkDao(appDatabase)
-    val receivedLikeDao = RoomModule.provideReceiveLikeDao(appDatabase)
-    val sentLikeDao = RoomModule.provideSentLikeDao(appDatabase)
-    var yourUser by remember { mutableStateOf<User?>(null) }
-//    var yourUserId by remember { mutableStateOf(firebaseAuth.currentUser?.displayName ?: "") }
-    var user by remember { mutableStateOf<User?>(null) }
     val context = LocalContext.current
     var cameraIsGranted by remember { mutableStateOf(false) }
     var audioIsGranted by remember { mutableStateOf(false) }
     var cameraDialogMustBeShown by remember { mutableStateOf(false) }
     var audioDialogMustBeShown by remember { mutableStateOf(false) }
-    val yourLatitude = yourUser?.latitude ?: 0.0
-    val yourLongitude = yourUser?.longitude ?: 0.0
+    val yourLatitude = yourUserUiState?.latitude ?: 0.0
+    val yourLongitude = yourUserUiState?.longitude ?: 0.0
     val sheetState = rememberModalBottomSheetState()
     var shotButtonWasClicked by remember { mutableStateOf(false) }
     var cameraAndAudioPermissionsGranted by remember { mutableStateOf(false) }
@@ -162,6 +158,7 @@ fun UserProfileScreen(
     var snackbarMessage by remember {
         mutableStateOf("")
     }
+
     val showSnackbar: () -> Unit = {
         scope.launch {
             snackbarHostState.showSnackbar("Video duration exceeds the maximum allowed duration")
@@ -196,43 +193,27 @@ fun UserProfileScreen(
     var isBookmarked by remember {
         mutableStateOf(true)
     }
+
     var hasBeenClicked by remember {
         mutableStateOf(false)
     }
+
     var hasConfirmedRemoval by remember {
         mutableStateOf(false)
     }
 
-    LaunchedEffect(Unit) {
-        scope.launch {
-            withContext(Dispatchers.IO) {
-                val yourUserId = firebaseAuth.currentUser?.displayName ?: ""
-                user = userId?.let { userDao.findById(it) }
-                yourUser = usersViewModel.getUser()
-                if (user != null) {
-                    try {
-                        val bookmarks = bookmarkDao.findById(yourUserId).bookmarks
-                        Log.d(TAG, "List of bookmarks - ${bookmarks} - userId is $userId")
-                        isBookmarked = bookmarks.contains(userId)
-                    } catch (npe: NullPointerException) {
-                        isBookmarked = false
-                        Log.d(TAG, "No bookmarks yet")
-                    }
-                    try {
-                        val sentLikes =
-                            sentLikeDao.findById(yourUserId).sentLikes
-                        Log.d(TAG, "List of sentLikes - ${sentLikes} - userId is $userId")
-                        isLiked = sentLikes.contains(userId)
-                    } catch (npe: NullPointerException) {
-                        isLiked = false
-                        Log.d(TAG, "No sentLikes yet")
-                    }
-                }
-                Log.d(TAG, "Welcome to the page of ${user?.userName}")
-                Log.d(TAG, "You're logged in as ${yourUser?.userName}")
-            }
+
+    LaunchedEffect(Unit, sentLikeUiState) {
+        withContext(Dispatchers.IO) {
+            user = userViewModel.fetchUserFromRoom(userId ?: "")
+//            isLiked = sentLikeUiState.sentLikes.contains(userId)
         }
     }
+
+    Log.d("UserProfileScreen", "displayName = ${yourUserUiState?.displayName}")
+    Log.d("UserProfileScreen", "mediaOne = ${yourUserUiState?.mediaOne}")
+    Log.d("UserProfileScreen", "mediaProfileVideo = ${yourUserUiState?.mediaProfileVideo}")
+    Log.d("UserProfileScreen", "gender = ${yourUserUiState?.gender}")
 
     val cameraAndAudioPermissionRequest =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
@@ -360,7 +341,9 @@ fun UserProfileScreen(
 //                // Add more users as needed
 //            )
 //            val user = cards[0]
+
         val scrollState: LazyListState = rememberLazyListState()
+
         LazyColumn(
             modifier = Modifier.padding(16.dp),
             state = scrollState,
@@ -583,7 +566,7 @@ fun UserProfileScreen(
                                     verticalArrangement = Arrangement.Center,
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
-                                    val painter = if (!isLiked) {
+                                    val painter = if (!sentLikeUiState.sentLikes.contains(userId)) {
                                         painterResource(id = R.drawable.heart_alt_svgrepo_com)
                                     } else {
                                         painterResource(id = R.drawable.heart_svgrepo_com_2)
@@ -595,28 +578,154 @@ fun UserProfileScreen(
                                             .height(48.dp)
                                             .width(48.dp)
                                             .clickable {
-                                                if (yourUser?.displayName.isNullOrBlank() ||
-                                                    yourUser?.mediaOne.isNullOrBlank() ||
-                                                    yourUser?.mediaProfileVideo.isNullOrBlank() ||
-                                                    yourUser?.gender == Gender.UNKNOWN
+//                                                isLiked = !isLiked
+                                                Log.d(
+                                                    "UserProfileScreen", "sentLikes = " +
+                                                            "${sentLikeUiState.sentLikes}"
+                                                )
+                                                if (yourUserUiState?.displayName.isNullOrBlank() ||
+                                                    yourUserUiState?.mediaOne.isNullOrBlank() ||
+                                                    yourUserUiState?.mediaProfileVideo.isNullOrBlank() ||
+                                                    yourUserUiState?.gender == Gender.UNKNOWN
                                                 ) {
-                                                    Toast
-                                                        .makeText(
-                                                            context,
-                                                            "Please complete all required fields first.",
-                                                            Toast.LENGTH_SHORT
+                                                    scope.launch(Dispatchers.IO) {
+                                                        snackbarMessage =
+                                                            "Please complete all required fields first."
+                                                        snackbarHostState.showSnackbar(
+                                                            snackbarMessage
                                                         )
-                                                        .show()
+                                                    }
+//                                                    Toast
+//                                                        .makeText(
+//                                                            context,
+//                                                            "Please complete all required fields first.",
+//                                                            Toast.LENGTH_SHORT
+//                                                        )
+//                                                        .show()
                                                 } else {
-                                                    isLiked = !isLiked
-                                                    likeViewModel.handleLike(
-                                                        userId,
-                                                        isLiked,
-                                                        context
+
+                                                    Log.d(
+                                                        "UserProfileScreen", "sentLikes = " +
+                                                                "${sentLikeUiState.sentLikes}"
                                                     )
+
+                                                    val sentLikeData: MutableMap<String, Any> =
+                                                        mutableMapOf()
+                                                    sentLikeData["sentLike-${userId}"] =
+                                                        userId ?: ""
+
+                                                    val receivedLikeData: MutableMap<String, Any> =
+                                                        mutableMapOf()
+                                                    receivedLikeData["receivedLike-${firebaseRepository.getYourUserId()}"] =
+                                                        firebaseRepository.getYourUserId()
+
+                                                    if (!sentLikeUiState.sentLikes.contains(user?.id)) {
+
+                                                        sentLikeViewModel.saveAndStoreSentLike(
+                                                            user?.id ?: "", sentLikeData
+                                                        )
+
+                                                        receivedLikeViewModel.saveAndStoreReceivedLike(
+                                                            user?.id ?: "", receivedLikeData,
+                                                            context
+                                                        )
+
+                                                        val userData: MutableMap<String, Any> =
+                                                            mutableMapOf()
+                                                        val mediaItems: MutableMap<String, Uri> =
+                                                            mutableMapOf()
+
+                                                        user?.likesCount =
+                                                            if ((user?.likesCount?.plus(1)
+                                                                    ?: 0) < 0
+                                                            ) {
+                                                                0
+                                                            } else {
+                                                                user?.likesCount?.plus(1)
+                                                            }
+
+                                                        userData["likesCount"] =
+                                                            user?.likesCount ?: 0
+
+                                                        user?.newLikesCount =
+                                                            if ((user?.newLikesCount?.plus(1)
+                                                                    ?: 0) < 0
+                                                            ) {
+                                                                0
+                                                            } else {
+                                                                user?.newLikesCount?.plus(1)
+                                                            }
+
+                                                        userData["newLikesCount"] =
+                                                            user?.newLikesCount ?: 0
+
+                                                        userViewModel.saveAndStoreData(
+                                                            user?.id ?: "", userData,
+                                                            mediaItems, context
+                                                        ) {}
+
+                                                    } else {
+
+                                                        sentLikeViewModel.removeSentLike(
+                                                            user?.id ?: ""
+                                                        )
+
+                                                        receivedLikeViewModel.removeReceivedLike(
+                                                            firebaseRepository.getYourUserId()
+                                                        )
+
+                                                        val userData: MutableMap<String, Any> =
+                                                            mutableMapOf()
+                                                        val mediaItems: MutableMap<String, Uri> =
+                                                            mutableMapOf()
+
+                                                        user?.likesCount =
+                                                            if ((user?.likesCount?.minus(1)
+                                                                    ?: 0) < 0
+                                                            ) {
+                                                                0
+                                                            } else {
+                                                                user?.likesCount?.minus(1)
+                                                            }
+
+                                                        userData["likesCount"] =
+                                                            user?.likesCount ?: 0
+
+                                                        user?.newLikesCount =
+                                                            if ((user?.newLikesCount?.minus(1)
+                                                                    ?: 0) < 0
+                                                            ) {
+                                                                0
+                                                            } else {
+                                                                user?.newLikesCount?.minus(1)
+                                                            }
+
+                                                        userData["newLikesCount"] =
+                                                            user?.newLikesCount ?: 0
+
+                                                        userViewModel.saveAndStoreData(
+                                                            user?.id ?: "", userData,
+                                                            mediaItems, context
+                                                        ) {}
+
+                                                    }
+
                                                 }
                                             })
                                     Text(text = "Like", fontSize = 16.sp)
+                                    Log.d(
+                                        "UserProfileScreen",
+                                        "sentLikes = $sentLikeUiState.sentLikes"
+                                    )
+                                    LaunchedEffect(Unit, sentLikeUiState) {
+                                        withContext(Dispatchers.IO) {
+//                                            isLiked = sentLikeUiState.sentLikes.contains(userId)
+                                            Log.d(
+                                                "UserProfileScreen",
+                                                "sentLikes = $sentLikeUiState.sentLikes"
+                                            )
+                                        }
+                                    }
                                 }
 
                                 Column(
@@ -666,24 +775,38 @@ fun UserProfileScreen(
                                         }.toDouble()
 
 
-                                        if (yourUser?.displayName.isNullOrBlank() ||
-                                            yourUser?.mediaOne.isNullOrBlank() ||
-                                            yourUser?.mediaProfileVideo.isNullOrBlank() ||
-                                            yourUser?.gender == Gender.UNKNOWN
+                                        if (yourUserUiState?.displayName.isNullOrBlank() ||
+                                            yourUserUiState?.mediaOne.isNullOrBlank() ||
+                                            yourUserUiState?.mediaProfileVideo.isNullOrBlank() ||
+                                            yourUserUiState?.gender == Gender.UNKNOWN
                                         ) {
-                                            Toast.makeText(
-                                                context,
-                                                "Please complete all required fields first.",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
+                                            scope.launch {
+                                                withContext(Dispatchers.IO) {
+                                                    snackbarMessage =
+                                                        "Please complete all required fields first."
+                                                    snackbarHostState.showSnackbar(snackbarMessage)
+                                                }
+                                            }
+//                                            Toast.makeText(
+//                                                context,
+//                                                "Please complete all required fields first.",
+//                                                Toast.LENGTH_SHORT
+//                                            ).show()
                                         } else if (distance <= theirAcceptShotsMiles) {
                                             shotButtonWasClicked = true
                                         } else {
-                                            Toast.makeText(
-                                                context,
-                                                "You are currently out of range to send a ,shot.",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
+                                            scope.launch {
+                                                withContext(Dispatchers.IO) {
+                                                    snackbarMessage =
+                                                        "You are currently out of range to send a shot."
+                                                    snackbarHostState.showSnackbar(snackbarMessage)
+                                                }
+                                            }
+//                                            Toast.makeText(
+//                                                context,
+//                                                "You are currently out of range to send a shot.",
+//                                                Toast.LENGTH_SHORT
+//                                            ).show()
                                         }
 
                                     }) {
@@ -707,7 +830,7 @@ fun UserProfileScreen(
                                     verticalArrangement = Arrangement.Center,
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
-                                    val painter = if (!isBookmarked) {
+                                    val painter = if (!bookmarkUiState.bookmarks.contains(userId)) {
                                         painterResource(id = R.drawable.bookmark_24px)
                                     } else {
                                         painterResource(id = R.drawable.baseline_bookmark_24)
@@ -720,422 +843,81 @@ fun UserProfileScreen(
                                             .height(48.dp)
                                             .width(48.dp)
                                             .clickable {
-                                                scope.launch {
-                                                    withContext(Dispatchers.IO) {
-                                                        isBookmarked = !isBookmarked
+                                                scope.launch(Dispatchers.IO) {
+
+                                                    Log.d("UserProfileScreen", "user = $user")
+
+                                                    if (bookmarkUiState.bookmarks.contains(user?.id)) {
+
+                                                        val userData: MutableMap<String, Any> =
+                                                            mutableMapOf()
+                                                        val mediaItems: MutableMap<String, Uri> =
+                                                            mutableMapOf()
+
+                                                        bookmarkViewModel.removeBookmark(
+                                                            user?.id ?: ""
+                                                        )
+
+                                                        userData["timesBookmarkedCount"] =
+                                                            if (user?.timesBookmarkedCount == 0) {
+                                                                0
+                                                            } else {
+                                                                user?.timesBookmarkedCount?.minus(1)
+                                                                    ?: 0
+                                                            }
+
+                                                        userViewModel.saveAndStoreData(
+                                                            user?.id ?: "",
+                                                            userData,
+                                                            mediaItems,
+                                                            context
+                                                        ) {}
+
+                                                    } else {
+
                                                         val bookmarkData: MutableMap<String, Any> =
                                                             mutableMapOf()
-                                                        bookmarkData["bookmark-${userId}"] =
-                                                            userId ?: ""
-                                                        if (isBookmarked) {
-                                                            bookmarkViewModel.saveBookmarkToFirebase(
-                                                                userId ?: "",
-                                                                bookmarkData, context
-                                                            )
-                                                        } else {
-                                                            bookmarkViewModel.removeBookmarkFromFirebase(
-                                                                userId ?: "", context
-                                                            )
-                                                        }
-                                                        val retrievedBookmarks: List<String> =
-                                                            bookmarkViewModel.getBookmarksFromFirebase(
-                                                                firebaseAuth.currentUser?.displayName
-                                                                    ?: ""
-                                                            )
-                                                        Log.d(
-                                                            TAG,
-                                                            "The retrievedBookmarks - $retrievedBookmarks"
-                                                        )
-                                                        val yourUserId =
-                                                            firebaseAuth.currentUser?.displayName
-                                                        if (!yourUserId.isNullOrBlank()) {
-                                                            var bookmark =
-                                                                bookmarkDao.findById(yourUserId)
 
-                                                            if (bookmark != null) {
-                                                                bookmark = bookmark.copy(
-                                                                    bookmarks = retrievedBookmarks.toMutableList()
-                                                                )
-                                                                // Update the existing bookmark
-                                                                bookmarkDao.update(bookmark)
-                                                            } else {
-                                                                bookmark = Bookmark(
-                                                                    bookmarkId = yourUserId,
-                                                                    bookmarks = retrievedBookmarks.toMutableList()
-                                                                )
-                                                                // Insert a new bookmark
-                                                                bookmarkDao.insert(bookmark)
-                                                            }
-                                                        }
+                                                        val userData: MutableMap<String, Any> =
+                                                            mutableMapOf()
+
+                                                        val mediaItems: MutableMap<String, Uri> =
+                                                            mutableMapOf()
+
+                                                        bookmarkData["bookmark-${user?.id}"] =
+                                                            user?.id ?: ""
+
+                                                        userData["timesBookmarkedCount"] =
+                                                            user?.timesBookmarkedCount?.plus(1)
+                                                                ?: 0
+
+                                                        Log.d(
+                                                            "UserProfileScreen",
+                                                            "timesBookmarkedCount = ${userData["timesBookmarkedCount"]}"
+                                                        )
+
+                                                        userViewModel.saveAndStoreData(
+                                                            user?.id ?: "",
+                                                            userData,
+                                                            mediaItems,
+                                                            context
+                                                        ) {}
+
+                                                        bookmarkViewModel.saveAndStoreBookmark(
+                                                            user?.id ?: "",
+                                                            bookmarkData
+                                                        )
+
                                                     }
                                                 }
                                             })
                                     Text(text = "Bookmark", fontSize = 16.sp)
-
-//                                    if (!isBookmarked && hasBeenClicked) {
-//                                        Log.d(TAG, "Bookmark is now - $isBookmarked")
-//                                        val isConfirmed =
-//                                            DialogUtils.bookmarkRemovalDialog { confirmed ->
-//                                                // Callback function called on dialog dismissal
-//                                                isShowingBookmarkDialog = false
-//                                                // Use the `confirmed` value if needed
-//                                                Log.d(
-//                                                    TAG,
-//                                                    "Dialog dismissed, confirmed: $confirmed"
-//                                                )
-//                                            }
-//                                        LaunchedEffect(isConfirmed) {
-//                                            if (isConfirmed) {
-//                                                scope.launch {
-//                                                    withContext(Dispatchers.IO) {
-//                                                        val yourUserId =
-//                                                            firebaseAuth.currentUser?.uid ?: ""
-//                                                        Log.d(TAG, "theirUserId = $userId")
-//                                                        val isRemovedFromDB =
-//                                                            bookmarkViewModel.removeBookmarkFromFirebase(
-//                                                                userId ?: ""
-//                                                            )
-//                                                        if (isRemovedFromDB) {
-//                                                            Log.d(
-//                                                                TAG,
-//                                                                "Inside isRemovedFromDB - $isConfirmed"
-//                                                            )
-//                                                            var bookmark =
-//                                                                bookmarkDao.findById(yourUserId)
-//                                                            val bookmarkList =
-//                                                                bookmarkViewModel.getBookmarksFromFirebase(
-//                                                                    yourUserId
-//                                                                )
-//                                                            bookmark =
-//                                                                bookmark.copy(bookmarks = bookmarkList.toMutableList())
-//                                                            bookmarkDao.insert(bookmark)
-//                                                            Log.d(
-//                                                                TAG,
-//                                                                "Bookmarks - ${bookmark.bookmarks}"
-//                                                            )
-//                                                        }
-//
-//                                                    }
-//                                                }
-//                                                hasConfirmedRemoval = true
-//                                            }
-//                                        }
-//                                        hasBeenClicked = false
-//                                    } else {
-//                                        LaunchedEffect(isBookmarked) {
-//                                            if (isBookmarked) {
-//                                                scope.launch {
-//                                                    withContext(Dispatchers.IO) {
-//                                                        val bookmarkData =
-//                                                            mutableMapOf<String, Any>()
-//                                                        val yourUserId =
-//                                                            firebaseAuth.currentUser?.uid ?: ""
-//                                                        var bookmarkList =
-//                                                            bookmarkViewModel.getBookmarksFromFirebase(
-//                                                                yourUserId
-//                                                            )
-//                                                        if (!bookmarkList.contains(userId)) {
-//                                                            bookmarkData["bookmark-$userId"] =
-//                                                                bookmarkViewModel.saveBookmarkToFirebase(
-//                                                                    yourUserId,
-//                                                                    bookmarkData
-//                                                                )
-//                                                            bookmarkList =
-//                                                                bookmarkViewModel.getBookmarksFromFirebase(
-//                                                                    yourUserId
-//                                                                )
-//                                                            var bookmark =
-//                                                                bookmarkDao.findById(yourUserId)
-//                                                            bookmark =
-//                                                                bookmark.copy(bookmarks = bookmarkList.toMutableList())
-//                                                            bookmarkDao.insert(bookmark)
-//                                                        }
-//                                                    }
-//                                                }
-//                                            }
-//                                        }
-//                                    }
-
-
                                 }
-
-
                             }
                         }
                     }
                 }
             }
-//            item() {
-//                Card(
-//                    modifier = Modifier
-//                        .shadow(16.dp),
-//                    colors = CardColors(
-//                        containerColor = Color.White,
-//                        contentColor = Color.Black, disabledContentColor = Color.Red,
-//                        disabledContainerColor = Color.Red
-//                    )
-//                ) {
-//                    Box() {
-//                        Column(
-//                            modifier = Modifier
-//                                .fillMaxSize()
-//                                .padding(16.dp)
-//                        ) {
-//                            Column(
-//                                modifier = Modifier
-//                                    .fillMaxSize(),
-////                                verticalArrangement = Arrangement.spacedBy(8.dp), // Adjust the spacing here
-////                                horizontalAlignment = Alignment.CenterHorizontally
-//                            ) {
-//                                Box(modifier = Modifier.fillMaxWidth()) {
-//                                    Column() {
-//                                        //Display Name
-//                                        Text(
-//                                            text = retrievedUser.value?.displayName ?: "",
-////                                    fontSize = 28.sp,
-//                                            fontWeight = FontWeight.Bold
-//                                        )
-//                                        //Username
-//                                        val userName = retrievedUser.value?.userName ?: ""
-//                                        if (userName != "") {
-//                                            Text(
-//                                                text = userName,
-////                                        fontSize = 16.sp
-//                                            )
-//                                        }
-//                                    }
-//                                }
-//
-////                                Spacer(Modifier.height(8.dp))
-//
-//                                //Link
-//                                Box(modifier = Modifier.fillMaxWidth()) {
-//                                    Row() {
-//                                        Icon(
-//                                            painter = painterResource(R.drawable.link_svgrepo_com),
-//                                            "Link Icon", tint = Color(0xFFFF6F00)
-//                                        )
-//                                        Spacer(modifier = Modifier.width(4.dp))
-//                                        val openUrl = rememberLauncherForActivityResult(
-//                                            ActivityResultContracts.StartActivityForResult()
-//                                        ) { }
-//                                        Text(
-//                                            text = retrievedUser.value?.link ?: "",
-//                                            maxLines = 1, // Set the maximum number of lines to 1
-//                                            overflow = TextOverflow.Ellipsis, // Add an ellipsis (...) if the text overflows
-//                                            modifier = Modifier.clickable {
-//                                                val intent = Intent(
-//                                                    Intent.ACTION_VIEW,
-//                                                    Uri.parse(retrievedUser.value?.link)
-//                                                )
-//                                                openUrl.launch(intent)
-//                                            }
-//                                        )
-//                                    }
-//                                }
-//
-//
-//                                //Location or How far away
-//                                Box(
-//                                    modifier = Modifier.fillMaxWidth(),
-////                                    contentAlignment = Alignment.Center
-//                                ) {
-//                                    Row() {
-//                                        Icon(
-//                                            painter = painterResource(R.drawable.location_marker_svgrepo_com),
-//                                            "Location Icon", tint = Color(0xFFFF6F00)
-//                                        )
-//                                        Row(
-////                                            verticalAlignment = Alignment.CenterVertically // Center the items vertically within the Row
-//                                        ) {
-//                                            Spacer(modifier = Modifier.width(4.dp))
-//                                            Text(text = "45 miles away")
-//                                        }
-//                                    }
-//                                }
-////                                Spacer(Modifier.height(8.dp))
-//                                Box(
-//                                    modifier = Modifier.fillMaxWidth(),
-////                                    contentAlignment = Alignment.Center
-//                                ) {
-//                                    Row() {
-//                                        Row(
-////                                            verticalAlignment = Alignment.CenterVertically // Center the items vertically within the Row
-//                                        ) {
-//                                            Spacer(modifier = Modifier.width(4.dp))
-//                                            Text(
-//                                                text = "Accepting shots from:",
-//                                                fontWeight = FontWeight.Bold,
-////                                                fontSize = 20.sp
-//                                            )
-//                                        }
-//                                    }
-//                                }
-//
-//
-//                                Box(
-//                                    modifier = Modifier.fillMaxWidth(),
-////                                    contentAlignment = Alignment.Center
-//                                ) {
-//                                    Row() {
-//                                        Row(
-////                                            verticalAlignment = Alignment.CenterVertically // Center the items vertically within the Row
-//                                        ) {
-//                                            // Currently accepting shots within:
-//                                            Spacer(modifier = Modifier.width(4.dp))
-//                                            Text(text = "Men within 50 miles")
-//                                        }
-//                                    }
-//                                }
-//                            }
-//
-//
-//                            Spacer(Modifier.height(16.dp))
-//                            Row(
-//                                modifier = Modifier.fillMaxWidth(),
-//                                verticalAlignment = Alignment.CenterVertically,
-//                                horizontalArrangement = Arrangement.Center
-//                            ) {
-//                                Column(
-//                                    modifier = Modifier.weight(1f),
-//                                    verticalArrangement = Arrangement.Center,
-//                                    horizontalAlignment = Alignment.CenterHorizontally
-//                                ) {
-//                                    Icon(
-//                                        painterResource(id = R.drawable.favorite_24px),
-//                                        "Like Button",
-//                                        tint = Color.Red
-//                                    )
-//                                    Text(text = "Like", fontSize = 16.sp)
-//                                }
-//                                Column(
-//                                    modifier = Modifier.weight(1f),
-//                                    verticalArrangement = Arrangement.Center,
-//                                    horizontalAlignment = Alignment.CenterHorizontally
-//                                ) {
-//                                    Box() {
-//                                        Icon(
-//                                            painterResource(id = R.drawable.circle),
-//                                            "Orange Circle of Ball",
-//                                            tint = Color(0xFFFFA500),
-//                                            modifier = Modifier.align(Alignment.Center)
-//                                        )
-//                                        Icon(
-//                                            painterResource(id = R.drawable.sports_basketball_24px),
-//                                            "Shots Button",
-//                                            modifier = Modifier.align(Alignment.Center)
-//                                        )
-//                                    }
-//                                    Text(text = "Shoot", fontSize = 16.sp)
-//                                }
-//                                Column(
-//                                    modifier = Modifier.weight(1f),
-//                                    verticalArrangement = Arrangement.Center,
-//                                    horizontalAlignment = Alignment.CenterHorizontally
-//                                ) {
-//                                    Icon(
-//                                        painterResource(id = R.drawable.bookmark_24px),
-//                                        "Bookmark Button",
-//                                        tint = Color.Blue,
-//                                    )
-//                                    Text(text = "Bookmark", fontSize = 16.sp)
-//                                }
-//                            }
-//                        }
-//                    }
-//                }
-//            }
-//                item() {
-//                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-//                        Card(
-//                            modifier = Modifier
-//                                .height(90.dp)
-//                                .shadow(16.dp)
-//                                .weight(1f),
-//                            colors = CardColors(
-//                                containerColor = Color.White,
-//                                contentColor = Color.Black, disabledContentColor = Color.Red,
-//                                disabledContainerColor = Color.Red
-//                            )
-//                        ) {
-//                            Box(modifier = Modifier.fillMaxSize()) {
-//                                Column(
-//                                    modifier = Modifier.fillMaxSize(),
-//                                    verticalArrangement = Arrangement.Center,
-//                                    horizontalAlignment = Alignment.CenterHorizontally
-//                                ) {
-//                                    Icon(
-//                                        painterResource(id = R.drawable.favorite_24px),
-//                                        "Like Button",
-//                                        tint = Color.Red
-//                                    )
-//                                    Text(text = "Like", fontSize = 16.sp)
-//                                }
-//                            }
-//                        }
-//                        Card(
-//                            modifier = Modifier
-//                                .height(90.dp)
-//                                .shadow(16.dp)
-//                                .weight(1f),
-//                            colors = CardColors(
-//                                containerColor = Color.White,
-//                                contentColor = Color.Black, disabledContentColor = Color.Red,
-//                                disabledContainerColor = Color.Red
-//                            )
-//                        ) {
-//                            Box(modifier = Modifier.fillMaxSize()) {
-//                                Column(
-//                                    modifier = Modifier.fillMaxSize(),
-//                                    verticalArrangement = Arrangement.Center,
-//                                    horizontalAlignment = Alignment.CenterHorizontally
-//                                ) {
-//                                    Box() {
-//                                        Icon(
-//                                            painterResource(id = R.drawable.circle),
-//                                            "Orange Circle of Ball",
-//                                            tint = Color(0xFFFFA500),
-//                                            modifier = Modifier.align(Alignment.Center)
-//                                        )
-//                                        Icon(
-//                                            painterResource(id = R.drawable.sports_basketball_24px),
-//                                            "Shots Button",
-//                                            modifier = Modifier.align(Alignment.Center)
-//                                        )
-//                                    }
-//                                    Text(text = "Shoot", fontSize = 16.sp)
-//                                }
-//                            }
-//                        }
-//                        Card(
-//                            modifier = Modifier
-//                                .height(90.dp)
-//                                .shadow(16.dp)
-//                                .weight(1f),
-//                            colors = CardColors(
-//                                containerColor = Color.White,
-//                                contentColor = Color.Black, disabledContentColor = Color.Red,
-//                                disabledContainerColor = Color.Red
-//                            )
-//                        ) {
-//                            Box(modifier = Modifier.fillMaxSize()) {
-//                                Column(
-//                                    modifier = Modifier.fillMaxSize(),
-//                                    verticalArrangement = Arrangement.Center,
-//                                    horizontalAlignment = Alignment.CenterHorizontally
-//                                ) {
-//                                    Icon(
-//                                        painterResource(id = R.drawable.bookmark_24px),
-//                                        "Bookmark Button",
-//                                        tint = Color.Blue,
-//                                    )
-//                                    Text(text = "Bookmark", fontSize = 16.sp)
-//                                }
-//                            }
-//                        }
-//                    }
-//                }
-
 
             //mediaOne
             if (!user?.mediaOne.isNullOrBlank()) {
@@ -1549,7 +1331,7 @@ fun UserProfileScreen(
                                         val religion = when (user?.religion) {
                                             Religion.CHRISTIANITY -> "Christianity"
                                             Religion.ISLAM -> "Islam"
-                                            Religion.HINDUISM -> "Hindiusm"
+                                            Religion.HINDUISM -> "Hinduism"
                                             Religion.BUDDHISM -> "Buddhism"
                                             Religion.SIKHISM -> "Sikhism"
                                             Religion.JUDAISM -> "Judaism"
@@ -1915,7 +1697,16 @@ fun UserProfileScreen(
                 // Handle case where no email client is available
                 // They don't want us using toasts but snackbars instead
                 // noting to perhaps go change this but keeping for the moment
-                Toast.makeText(context, "No email client found", Toast.LENGTH_SHORT).show()
+//                Toast.makeText(context, "No email client found", Toast.LENGTH_SHORT).show()
+                LaunchedEffect(Unit) {
+                    scope.launch {
+                        withContext(Dispatchers.IO) {
+                            snackbarMessage =
+                                "You are currently out of range to send a shot."
+                            snackbarHostState.showSnackbar(snackbarMessage)
+                        }
+                    }
+                }
                 showReport = false
             }
 
@@ -1924,7 +1715,16 @@ fun UserProfileScreen(
         val onBlockConfirmed: () -> Unit = {
             scope.launch {
                 withContext(Dispatchers.IO) {
-                    blockViewModel.block(userId)
+                    val blockedUserData: MutableMap<String, Any> = mutableMapOf()
+                    blockedUserData["blockedUser-${userId}"] = userId ?: ""
+                    blockedUserViewModel.saveAndStoreBlockedUser(userId ?: "", blockedUserData)
+
+                    val userWhoBlockedYouData: MutableMap<String, Any> = mutableMapOf()
+                    userWhoBlockedYouData["userWhoBlockedYou-${userWhoBlockedYouViewModel.getYourUserId()}"] =
+                        userWhoBlockedYouViewModel.getYourUserId()
+                    userWhoBlockedYouViewModel.saveAndStoreUser(userId ?: "", userWhoBlockedYouData)
+
+                    userViewModel.loadUsers()
                 }
                 navController.popBackStack()
             }
@@ -1972,39 +1772,6 @@ fun UserProfileScreen(
             shotButtonWasClicked = false
         }
 
-//        if (cameraDialogMustBeShown) {
-//            CameraDialog { cameraPermissionGranted ->
-//                cameraIsGranted = cameraPermissionGranted
-//                cameraDialogMustBeShown = false
-//                if (cameraPermissionGranted) {
-//                    when (PackageManager.PERMISSION_GRANTED) {
-//                        ContextCompat.checkSelfPermission(
-//                            context,
-//                            Manifest.permission.CAMERA
-//                        ) -> {
-//                            // Camera permission already granted
-//                            // Implement camera related code
-//                            cameraIsGranted = true
-//                        }
-//
-//                        else -> {
-//                            cameraPermissionRequest.launch(Manifest.permission.CAMERA)
-//                        }
-//                    }
-//                }
-//            }
-//        }
-//
-//        if (audioDialogMustBeShown) {
-//            AudioDialog { audioPermissionGranted ->
-//                audioIsGranted = audioPermissionGranted
-//                audioDialogMustBeShown = false
-//                if (audioPermissionGranted) {
-//                    audioPermissionRequest.launch(Manifest.permission.RECORD_AUDIO)
-//                }
-//            }
-//        }
-
     }
 }
 
@@ -2051,17 +1818,6 @@ fun BlockDialog(
     }
 }
 
-fun hasDetails(retrievedUser: MutableState<User?>): Boolean {
-    return !(retrievedUser.value?.lookingFor == null && retrievedUser.value?.gender == null && retrievedUser.value?.height == null && retrievedUser.value?.height == "")
-}
-
-fun hasEssentials(retrievedUser: MutableState<User?>): Boolean {
-    return !((retrievedUser.value?.work == null || retrievedUser.value?.work == "") && retrievedUser.value?.education == null && retrievedUser.value?.kids == null && retrievedUser.value?.religion == null && retrievedUser.value?.pets == null)
-}
-
-fun hasHabits(retrievedUser: MutableState<User?>): Boolean {
-    return !(retrievedUser.value?.exercise == null && retrievedUser.value?.smoking == null && retrievedUser.value?.drinking == null && retrievedUser.value?.marijuana == null)
-}
 
 @Composable
 fun CameraDialog(
@@ -2182,22 +1938,6 @@ fun VerificationVideo(videoUri: Uri?) {
 }
 
 
-@Composable
-fun ExoVideoPlayer(file: File) {
-//    val context = LocalContext.current
-//    val exoPlayer = remember { getSimpleExoPlayer(context, file) }
-//    AndroidView(
-//        modifier = Modifier
-//            .fillMaxSize()
-//            .padding(bottom = 20.dp),
-//        factory = { context1 ->
-//            PlayerView(context1).apply {
-//                player = exoPlayer
-//            }
-//        },
-//    )
-}
-
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 private fun useExoPlayer(videoUri: Uri): ExoPlayer {
@@ -2277,12 +2017,10 @@ fun UserProfileScreenPreview() {
     val firebaseStorage = FirebaseModule.provideStorage()
     val firebaseRepository =
         FirebaseModule.provideFirebaseRepository(firebaseAuth, firestore, firebaseStorage)
-    val editProfileViewModel =
-        ViewModelModule.provideEditProfileViewModel(firebaseRepository, firebaseAuth)
     val appDatabase = RoomModule.provideAppDatabase(LocalContext.current)
-    val usersViewModel = ViewModelModule.provideUsersViewModel(
-        firebaseRepository,
-        firebaseAuth, appDatabase
-    )
-//    UserProfileScreen(navController = rememberNavController(), "", usersViewModel)
+//    val userViewModel = ViewModelModule.provideUserViewModel(
+//        firebaseRepository,
+//        firebaseAuth, appDatabase
+//    )
+//    UserProfileScreen(navController = rememberNavController(), "", userViewModel)
 }

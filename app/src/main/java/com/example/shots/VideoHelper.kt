@@ -9,8 +9,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
-import android.view.ViewGroup
-import android.widget.FrameLayout
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -83,8 +81,15 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import androidx.navigation.NavController
+import androidx.work.OneTimeWorkRequest
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.WorkRequest
+import androidx.work.WorkerParameters
+import com.example.shots.ui.theme.IfSeenReceivedShotViewModel
 import com.example.shots.ui.theme.ReceivedShotViewModel
 import com.example.shots.ui.theme.SentShotViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -171,6 +176,7 @@ fun CameraPreviewScreen(
     navController: NavController, userId: String?,
     yourUserId: String?,
     receivedShotViewModel: ReceivedShotViewModel,
+    ifSeenReceivedShotViewModel: IfSeenReceivedShotViewModel,
     sentShotViewModel: SentShotViewModel
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -189,7 +195,7 @@ fun CameraPreviewScreen(
 
     val file = File(
         context.getExternalFilesDir(null),
-        "my_video.mp4"
+        "${yourUserId}_${System.currentTimeMillis()}.mp4"
     ) // Specify the file path for the recorded video
 //    val videoFile = File(context.getExternalFilesDir(null), "my_video.mp4")
 
@@ -248,17 +254,7 @@ fun CameraPreviewScreen(
 
     LaunchedEffect(Unit) {
         isFacingBack = !isFacingBack
-//        Log.d("VideoHelper", "Camera should start within Unit")
-//        val cameraProvider = context.getCameraProvider()
-//        cameraProvider.unbindAll()
-//        cameraProvider.bindToLifecycle(
-//            lifecycleOwner,
-//            cameraxSelectorBack,
-//            preview
-//        )
-//        preview.setSurfaceProvider(previewView.surfaceProvider)
     }
-
 
     LaunchedEffect(isFacingBack) {
         Log.d("VideoHelper", "Camera should start within isFacingBack")
@@ -299,12 +295,6 @@ fun CameraPreviewScreen(
                 lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, videoCapture
             )
             preview.setSurfaceProvider(previewView.surfaceProvider)
-//            val file = File(
-//                context.getExternalFilesDir(null),
-//                "my_video.mp4"
-//            ) // Specify the file path for the recorded video
-//            val videoFile = File(context.getExternalFilesDir(null), "my_video.mp4")
-//            file.copyTo(videoFile, overwrite = true)
             val fileOutputOptions =
                 FileOutputOptions.Builder(file).build() // Build the file output options
             val listenerExecutor: ScheduledExecutorService =
@@ -326,44 +316,46 @@ fun CameraPreviewScreen(
 
             if (permissionGranted) {
 
+                scope.launch(Dispatchers.IO) {
 
-                val preparedRecording =
-                    recorder.prepareRecording(context, fileOutputOptions).withAudioEnabled()
+                    val preparedRecording =
+                        recorder.prepareRecording(context, fileOutputOptions).withAudioEnabled()
 
 
-                val listener = androidx.core.util.Consumer<VideoRecordEvent> { event ->
-                    // Handle the video record event
-                    when (event) {
+                    val listener = androidx.core.util.Consumer<VideoRecordEvent> { event ->
+                        // Handle the video record event
+                        when (event) {
 
-                        is VideoRecordEvent.Start -> {
-                            Log.d("VideoHelper", "Recording started! - $file")
-                            // Handle the start event
-                        }
-
-                        is VideoRecordEvent.Finalize -> {
-                            // Handle the finalize event and any error information
-                            Log.d("VideoHelper", "Recording done! - $file")
-                            val error = event.error
-                            if (error != null) {
-                                Log.d(TAG, "There's been an error! - $error")
-                                // Handle the error
+                            is VideoRecordEvent.Start -> {
+                                Log.d("VideoHelper", "Recording started! - $file")
+                                // Handle the start event
                             }
+
+                            is VideoRecordEvent.Finalize -> {
+                                // Handle the finalize event and any error information
+                                Log.d("VideoHelper", "Recording done! - $file")
+                                val error = event.error
+                                if (error != null) {
+                                    Log.d(TAG, "There's been an error! - $error")
+                                    // Handle the error
+                                }
 //                            isFinalized = true
-                            isReadyToPlay = true
+                                isReadyToPlay = true
+                            }
+                            // Handle other video record events if needed
                         }
-                        // Handle other video record events if needed
                     }
-                }
-                if (hasPressedRecord) {
-                    recording = preparedRecording.start(listenerExecutor, listener)
-                    Log.d("VideoHelper", "Recording started! - $file")
-                    if (hasPressedStop) {
-                        recording?.stop()
-                        isReadyToPlay = true
-                        Log.d("VideoHelper", "Recording stopped! - $file")
-                        hasPressedRecord = false
+                    if (hasPressedRecord) {
+                        recording = preparedRecording.start(listenerExecutor, listener)
+                        Log.d("VideoHelper", "Recording started! - $file")
+                        if (hasPressedStop) {
+                            recording?.stop()
+                            isReadyToPlay = true
+                            Log.d("VideoHelper", "Recording stopped! - $file")
+                            hasPressedRecord = false
+                        }
+                    } else if (isFinalized) {
                     }
-                } else if (isFinalized) {
                 }
             } else {
                 coroutineScope {
@@ -441,6 +433,8 @@ fun CameraPreviewScreen(
                 // Failed to save video file
                 Log.e("VideoHelper", "Failed to save video to gallery")
             }
+
+
         }
 
         var sendWasClicked by remember { mutableStateOf(false) }
@@ -457,35 +451,41 @@ fun CameraPreviewScreen(
             sendWasClicked = true
             val sentShotData: MutableMap<String, Uri> = mutableMapOf()
             val receivedShotData: MutableMap<String, Uri> = mutableMapOf()
+            val ifSeenReceivedShotData: MutableMap<String, Boolean> = mutableMapOf()
             //lisa = userId
             //jamar = yourUserId
             sentShotData["sentShot-$userId"] = file.toUri()
             receivedShotData["receivedShot-$yourUserId"] = file.toUri()
-            if (userId != null) {
-                receivedShotViewModel.saveReceivedShotToFirebase(
-                    true,
-                    userId,
-                    receivedShotData,
-                    context,
-                    { isAddedToReceived ->
-                        wasAddedToReceived = isAddedToReceived
-                    },
-                    { isNotAddedToReceived ->
-                        wasNotAddedToReceived = isNotAddedToReceived
-                    }
-                )
-                sentShotViewModel.saveSentShotToFirebase(
-                    userId,
-                    sentShotData,
-                    context,
-                    { isAddedToSent ->
-                        wasAddedToSent = isAddedToSent
+            ifSeenReceivedShotData["ifSeenReceivedShot-$yourUserId"] = false
 
-                    },
-                    { isNotAddedToSent ->
-                        wasNotAddedToSent = isNotAddedToSent
-                    }
-                )
+            if (userId != null) {
+
+                val sendCallbackWorkRequest: WorkRequest =
+                    OneTimeWorkRequestBuilder<SendCallbackWorker>()
+                        .build()
+
+                WorkManager
+                    .getInstance(context)
+                    .enqueue(sendCallbackWorkRequest)
+
+                val myWorkRequest = OneTimeWorkRequest.from(SendCallbackWorker::class.java)
+
+
+//                receivedShotViewModel.saveReceivedShot(
+//                    userId,
+//                    receivedShotData,
+//                    context
+//                )
+//                ifSeenReceivedShotViewModel.saveIfSeenReceivedShot(
+//                    userId,
+//                    ifSeenReceivedShotData
+//                )
+//                sentShotViewModel.saveSentShot(
+//                    userId,
+//                    sentShotData,
+//                    context
+//                )
+
             }
 
 
@@ -874,8 +874,8 @@ fun videoPlayerForShot(
                             .height(36.dp)
                             .width(36.dp)
                             .clickable {
-                                saveCallback()
                                 saveWasClicked = true
+                                saveCallback()
                             }
                     )
                     Spacer(modifier = Modifier.height(16.dp)) // Add a 16dp vertical space
@@ -1516,7 +1516,7 @@ fun videoPlayerForSentShot(
             }
 
             if (saveWasClicked) {
-//                DeleteDialog(deleteCallback, notDeleteCallback)
+                saveWasClicked = false
                 saveCallback()
             }
 

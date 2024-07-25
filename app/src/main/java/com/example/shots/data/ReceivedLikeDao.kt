@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
+import androidx.room.Upsert
 
 @Dao
 interface ReceivedLikeDao {
@@ -22,12 +23,14 @@ interface ReceivedLikeDao {
     fun findById(receivedLikeIds: String): ReceivedLike
 
     //This allows for you to add multiple bookmarks but manually one by one
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun insert(vararg receivedLike: ReceivedLike)
+//    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
+    fun upsert(vararg receivedLike: ReceivedLike)
 
     //This allows you to add multiple bookmarks by way of list
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun insertAll(receivedLikes: List<ReceivedLike>)
+//    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
+    fun upsertAll(receivedLikes: List<ReceivedLike>)
 
     @Delete
     fun delete(receivedLike: ReceivedLike)

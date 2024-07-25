@@ -68,7 +68,7 @@ import kotlinx.coroutines.withContext
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SignupFilterScreen(
-    navController: NavController, usersViewModel: UsersViewModel,
+    navController: NavController, userViewModel: UserViewModel,
     dataStore: DataStore<Preferences>
 ) {
     val firebaseAuth = FirebaseModule.provideFirebaseAuth()
@@ -78,7 +78,7 @@ fun SignupFilterScreen(
         FirebaseModule.provideFirebaseRepository(firebaseAuth, firestore, firebaseStorage)
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    var user by remember { mutableStateOf(usersViewModel.getUser()) }
+    var user by remember { mutableStateOf(userViewModel.getUser()) }
     val context = LocalContext.current
 
     val backCallback = object : OnBackPressedCallback(true) {
@@ -142,7 +142,7 @@ fun SignupFilterScreen(
                             userData["ageMaxToShow"] = 35
 
                             if(existingUser?.id != null) {
-                                usersViewModel.saveUserDataToFirebase(
+                                userViewModel.saveUserDataToFirebase(
                                     existingUser.id,
                                     userData, mediaItems, context
                                 ) {
@@ -394,41 +394,41 @@ fun SignupFilterScreen(
                                 }
 
                                 LaunchedEffect(showUsersStoredOption) {
-                                    usersViewModel.updateUserField { currentUser ->
-                                        currentUser.copy(
-                                            showUsers = when (showUsersStoredOption) {
-                                                "TEN" -> Distance.TEN
-                                                "TWENTY" -> Distance.TWENTY
-                                                "THIRTY" -> Distance.THIRTY
-                                                "FORTY" -> Distance.FORTY
-                                                "FIFTY" -> Distance.FIFTY
-                                                "SIXTY" -> Distance.SIXTY
-                                                "SEVENTY" -> Distance.SEVENTY
-                                                "EIGHTY" -> Distance.EIGHTY
-                                                "NINETY" -> Distance.NINETY
-                                                "ONE_HUNDRED" -> Distance.ONE_HUNDRED
-                                                "ANYWHERE" -> Distance.ANYWHERE
-                                                else -> Distance.TEN
-                                            }
-                                        )
-                                    }
-
-                                    user = user?.copy(
-                                        showUsers = when (showUsersStoredOption) {
-                                            "TEN" -> Distance.TEN
-                                            "TWENTY" -> Distance.TWENTY
-                                            "THIRTY" -> Distance.THIRTY
-                                            "FORTY" -> Distance.FORTY
-                                            "FIFTY" -> Distance.FIFTY
-                                            "SIXTY" -> Distance.SIXTY
-                                            "SEVENTY" -> Distance.SEVENTY
-                                            "EIGHTY" -> Distance.EIGHTY
-                                            "NINETY" -> Distance.NINETY
-                                            "ONE_HUNDRED" -> Distance.ONE_HUNDRED
-                                            "ANYWHERE" -> Distance.ANYWHERE
-                                            else -> Distance.TEN
-                                        }
-                                    )
+//                                    userViewModel.updateUserField { currentUser ->
+//                                        currentUser.copy(
+//                                            showUsers = when (showUsersStoredOption) {
+//                                                "TEN" -> Distance.TEN
+//                                                "TWENTY" -> Distance.TWENTY
+//                                                "THIRTY" -> Distance.THIRTY
+//                                                "FORTY" -> Distance.FORTY
+//                                                "FIFTY" -> Distance.FIFTY
+//                                                "SIXTY" -> Distance.SIXTY
+//                                                "SEVENTY" -> Distance.SEVENTY
+//                                                "EIGHTY" -> Distance.EIGHTY
+//                                                "NINETY" -> Distance.NINETY
+//                                                "ONE_HUNDRED" -> Distance.ONE_HUNDRED
+//                                                "ANYWHERE" -> Distance.ANYWHERE
+//                                                else -> Distance.TEN
+//                                            }
+//                                        )
+//                                    }
+//
+//                                    user = user.copy(
+//                                        showUsers = when (showUsersStoredOption) {
+//                                            "TEN" -> Distance.TEN
+//                                            "TWENTY" -> Distance.TWENTY
+//                                            "THIRTY" -> Distance.THIRTY
+//                                            "FORTY" -> Distance.FORTY
+//                                            "FIFTY" -> Distance.FIFTY
+//                                            "SIXTY" -> Distance.SIXTY
+//                                            "SEVENTY" -> Distance.SEVENTY
+//                                            "EIGHTY" -> Distance.EIGHTY
+//                                            "NINETY" -> Distance.NINETY
+//                                            "ONE_HUNDRED" -> Distance.ONE_HUNDRED
+//                                            "ANYWHERE" -> Distance.ANYWHERE
+//                                            else -> Distance.TEN
+//                                        }
+//                                    )
                                 }
 
                             }
@@ -602,41 +602,41 @@ fun SignupFilterScreen(
                                 }
 
                                 LaunchedEffect(acceptShotsStoredOption) {
-                                    usersViewModel.updateUserField { currentUser ->
-                                        currentUser.copy(
-                                            acceptShots = when (acceptShotsStoredOption) {
-                                                "TEN" -> Distance.TEN
-                                                "TWENTY" -> Distance.TWENTY
-                                                "THIRTY" -> Distance.THIRTY
-                                                "FORTY" -> Distance.FORTY
-                                                "FIFTY" -> Distance.FIFTY
-                                                "SIXTY" -> Distance.SIXTY
-                                                "SEVENTY" -> Distance.SEVENTY
-                                                "EIGHTY" -> Distance.EIGHTY
-                                                "NINETY" -> Distance.NINETY
-                                                "ONE_HUNDRED" -> Distance.ONE_HUNDRED
-                                                "ANYWHERE" -> Distance.ANYWHERE
-                                                else -> Distance.TEN
-                                            }
-                                        )
-                                    }
-
-                                    user = user?.copy(
-                                        acceptShots = when (acceptShotsStoredOption) {
-                                            "TEN" -> Distance.TEN
-                                            "TWENTY" -> Distance.TWENTY
-                                            "THIRTY" -> Distance.THIRTY
-                                            "FORTY" -> Distance.FORTY
-                                            "FIFTY" -> Distance.FIFTY
-                                            "SIXTY" -> Distance.SIXTY
-                                            "SEVENTY" -> Distance.SEVENTY
-                                            "EIGHTY" -> Distance.EIGHTY
-                                            "NINETY" -> Distance.NINETY
-                                            "ONE_HUNDRED" -> Distance.ONE_HUNDRED
-                                            "ANYWHERE" -> Distance.ANYWHERE
-                                            else -> Distance.TEN
-                                        }
-                                    )
+//                                    userViewModel.updateUserField { currentUser ->
+//                                        currentUser.copy(
+//                                            acceptShots = when (acceptShotsStoredOption) {
+//                                                "TEN" -> Distance.TEN
+//                                                "TWENTY" -> Distance.TWENTY
+//                                                "THIRTY" -> Distance.THIRTY
+//                                                "FORTY" -> Distance.FORTY
+//                                                "FIFTY" -> Distance.FIFTY
+//                                                "SIXTY" -> Distance.SIXTY
+//                                                "SEVENTY" -> Distance.SEVENTY
+//                                                "EIGHTY" -> Distance.EIGHTY
+//                                                "NINETY" -> Distance.NINETY
+//                                                "ONE_HUNDRED" -> Distance.ONE_HUNDRED
+//                                                "ANYWHERE" -> Distance.ANYWHERE
+//                                                else -> Distance.TEN
+//                                            }
+//                                        )
+//                                    }
+//
+//                                    user = user.copy(
+//                                        acceptShots = when (acceptShotsStoredOption) {
+//                                            "TEN" -> Distance.TEN
+//                                            "TWENTY" -> Distance.TWENTY
+//                                            "THIRTY" -> Distance.THIRTY
+//                                            "FORTY" -> Distance.FORTY
+//                                            "FIFTY" -> Distance.FIFTY
+//                                            "SIXTY" -> Distance.SIXTY
+//                                            "SEVENTY" -> Distance.SEVENTY
+//                                            "EIGHTY" -> Distance.EIGHTY
+//                                            "NINETY" -> Distance.NINETY
+//                                            "ONE_HUNDRED" -> Distance.ONE_HUNDRED
+//                                            "ANYWHERE" -> Distance.ANYWHERE
+//                                            else -> Distance.TEN
+//                                        }
+//                                    )
                                 }
 
                             }
@@ -760,7 +760,7 @@ fun SignupFilterScreen(
                                     userData["ageMinToShow"] = updatedExistingUser.ageMinToShow ?: 0
                                     userData["ageMaxToShow"] = updatedExistingUser.ageMaxToShow ?: 0
                                     val userId = firebaseAuth.currentUser?.displayName ?: ""
-                                    usersViewModel.saveUserDataToFirebase(
+                                    userViewModel.saveUserDataToFirebase(
                                         userId ?: "", userData,
                                         mediaItems, context
                                     ) {

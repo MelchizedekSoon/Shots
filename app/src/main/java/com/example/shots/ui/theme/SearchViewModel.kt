@@ -1,13 +1,16 @@
 package com.example.shots.ui.theme
 
-import android.content.Context
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.shots.RoomModule
-import com.example.shots.data.AppDatabase
+import com.example.shots.data.BlockedUserRepository
+import com.example.shots.data.Gender
 import com.example.shots.data.User
+import com.example.shots.data.UserRepository
+import com.example.shots.data.UserWhoBlockedYouRepository
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,7 +19,10 @@ import javax.inject.Inject
 
 @HiltViewModel
 class SearchViewModel @Inject constructor(
-    private val usersViewModel: UsersViewModel,
+    private val userViewModel: UserViewModel,
+    private val userWhoBlockedYouRepository: UserWhoBlockedYouRepository,
+    private val blockedUserRepository: BlockedUserRepository,
+    private val userRepository: UserRepository,
     private val firebaseAuth: FirebaseAuth
 ) : ViewModel() {
 
@@ -36,13 +42,62 @@ class SearchViewModel @Inject constructor(
     val filteredUsersList: StateFlow<List<User>> = _filteredUsersList
 
     init {
-        fetchDataFromRoom(usersViewModel)
+        try {
+            loadUsers()
+            fetchDataFromRoom(userViewModel)
+        } catch (npe: NullPointerException) {
+            Log.d("SearchViewModel", "NullPointerException")
+        }
     }
 
-    private fun fetchDataFromRoom(usersViewModel: UsersViewModel) {
+    fun loadUsers() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val cards = mutableListOf<User>()
+
+                var usersWhoBlockedYouList = mutableListOf<String>()
+
+                var blockedUsersList = mutableListOf<String>()
+
+                userWhoBlockedYouRepository.fetchUpdatedUsersWhoBlockedYou()
+                    .collect { returnedUsersWhoBlockedYouList ->
+                        usersWhoBlockedYouList = returnedUsersWhoBlockedYouList.toMutableList()
+                    }
+
+                blockedUserRepository.fetchUpdatedBlockedUsers()
+                    .collect { returnedBlockedUsersList ->
+                        blockedUsersList = returnedBlockedUsersList.toMutableList()
+                    }
+
+                userRepository.fetchUpdatedUsers().collect { updatedUsers ->
+                    for (updatedUser in updatedUsers) {
+                        if (updatedUser.id !in blockedUsersList && updatedUser.id !in usersWhoBlockedYouList) {
+                            if (updatedUser.mediaOne?.isNotBlank() == true &&
+                                updatedUser.displayName?.isNotBlank() == true &&
+                                updatedUser.mediaProfileVideo?.isNotBlank() == true &&
+                                updatedUser.gender != Gender.UNKNOWN
+                            )
+                                cards += updatedUser
+                        }
+                    }
+                }
+
+                _usersList.value = cards
+
+                Log.d("UserViewModel", "cards - $cards")
+
+//                _uiState.value = UsersUiState().copy(users = cards.toMutableList())
+            } catch (e: Exception) {
+//                _uiState.value = UsersUiState().copy(errorMessage = e.message ?: "Unknown error")
+            }
+        }
+    }
+
+    private fun fetchDataFromRoom(userViewModel: UserViewModel) {
         viewModelScope.launch {
             try {
-                val users = usersViewModel.fetchAllNonBlockedUsersFromRoom()
+
+                val users = userViewModel.fetchAllNonBlockedUsersFromRoom()
                 _usersList.value = users
             } catch (e: Exception) {
                 // Handle any exceptions that occur during the database operation
@@ -59,7 +114,8 @@ class SearchViewModel @Inject constructor(
         viewModelScope.launch {
             val filteredList = if (query.isNotBlank()) {
                 _usersList.value.filter { user ->
-                    user.userName?.contains(query, ignoreCase = true) == true
+                    user.userName?.contains(query, ignoreCase = true) == true ||
+                            user.displayName?.contains(query, ignoreCase = true) == true
                 }
             } else {
                 emptyList()

@@ -1,6 +1,6 @@
 package com.example.shots.ui.theme
 
-import android.net.Uri
+import android.content.Context
 import android.util.Log
 import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.OnBackPressedDispatcherOwner
@@ -31,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,11 +56,7 @@ import com.example.shots.GetStreamClientModule
 import com.example.shots.NetworkBoundResource
 import com.example.shots.R
 import com.example.shots.RoomModule
-import com.example.shots.ViewModelModule
 import com.example.shots.client
-import com.example.shots.data.Bookmark
-import com.example.shots.data.ReceivedLike
-import com.example.shots.data.SentLike
 import com.example.shots.data.User
 import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.CoroutineScope
@@ -71,16 +68,27 @@ import kotlinx.coroutines.withContext
 @Composable
 fun LoginScreen(
     navController: NavController,
+    loginViewModel: LoginViewModel,
+    authViewModel: AuthViewModel,
     signupViewModel: SignupViewModel,
-    usersViewModel: UsersViewModel,
+    blockedUserViewModel: BlockedUserViewModel,
+    userWhoBlockedYouViewModel: UserWhoBlockedYouViewModel,
+    editProfileViewModel: EditProfileViewModel,
+    userViewModel: UserViewModel,
     bookmarkViewModel: BookmarkViewModel,
+    ifSeenReceivedShotViewModel: IfSeenReceivedShotViewModel,
     receivedLikeViewModel: ReceivedLikeViewModel,
     sentLikeViewModel: SentLikeViewModel,
     receivedShotViewModel: ReceivedShotViewModel,
     sentShotViewModel: SentShotViewModel,
+    firebaseViewModel: FirebaseViewModel,
     dataStore: DataStore<Preferences>,
 ) {
-    val loginViewModel = ViewModelModule.provideLoginViewModel()
+
+    val editProfileUiState by editProfileViewModel.uiState.collectAsState()
+
+    Log.d("LoginScreen", "editProfileUiState.userName = ${editProfileUiState.userName}")
+
     val snackbarHostState = remember { SnackbarHostState() }
     var destination by rememberSaveable {
         mutableStateOf(0)
@@ -133,13 +141,15 @@ fun LoginScreen(
 //                    destination = screen
 //                }
 
-                dataStore.data.collect { preferences ->
-                    destination = preferences[intPreferencesKey("currentScreen")] ?: 0
+                scope.launch {
+                    dataStore.edit { preferences ->
+                        preferences[intPreferencesKey("currentScreen")] = 0
+                    }
                 }
 
             }
-            val emailState = remember { mutableStateOf(loginViewModel.emailText.value) }
-            val passwordState = remember { mutableStateOf(loginViewModel.passwordText.value) }
+            val emailState = remember { mutableStateOf(authViewModel.emailText.value) }
+            val passwordState = remember { mutableStateOf(authViewModel.passwordText.value) }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Image(
                     painterResource(R.drawable.shots_3_cropped),
@@ -188,20 +198,28 @@ fun LoginScreen(
                     shape = RoundedCornerShape(0.dp),
                     onClick = {
                         scope.launch {
-                            var firebaseUser =
-                                loginViewModel.signIn(
-                                    emailState.value.text.trim(),
-                                    passwordState.value.text.trim()
+                            withContext(Dispatchers.IO) {
+
+                                val firebaseUser =
+                                    loginViewModel.signInWithEmail(
+                                        emailState.value.text.trim(),
+                                        passwordState.value.text.trim()
+                                    )
+
+                                Log.d("LoginScreen", "firebaseUser = $firebaseUser")
+                                Log.d(
+                                    "LoginScreen",
+                                    "firebaseUserId = ${firebaseUser?.displayName ?: ""}"
                                 )
-                            val snackbar = snackbarHostState
-                            if (firebaseUser == null) {
-                                snackbar.showSnackbar(
-                                    message = "No account was found. Please try another email or password.",
-                                    actionLabel = "OK"
-                                )
-                            } else {
-                                firebaseUser.verifyBeforeUpdateEmail(emailState.value.text)
-                                firebaseUser.updatePassword(passwordState.value.text)
+
+                                if (firebaseUser?.displayName?.isEmpty() == true || firebaseUser == null) {
+                                    snackbarHostState.showSnackbar(
+                                        message = "No account was found. Please try another email or password.",
+                                        actionLabel = "OK"
+                                    )
+                                } else {
+//                                    firebaseUser.verifyBeforeUpdateEmail(emailState.value.text)
+//                                    firebaseUser.updatePassword(passwordState.value.text)
 //                                if (AppPreferences.isFirstTimeLaunch(context)) {
 //                                    // Show the verification dialog
 //                                    showVerificationDialog(context)
@@ -209,134 +227,96 @@ fun LoginScreen(
 //                                    // Update the preferences to indicate that the dialog has been shown
 //                                    AppPreferences.setVerificationDialogShown(context)
 //                                }
-                                usersViewModel.storeUsersInRoom(usersViewModel.getUsersFromRepo())
-                                val userId = firebaseUser.displayName
-                                user = usersViewModel.getUserDataFromRepo(userId ?: "")
-                                Log.d("LoginScreen", "user = $user")
-                                Log.d("LoginScreen", "userId = $userId")
-                                scope.launch {
-                                    withContext(Dispatchers.IO) {
+
+
+//                                    Log.d(
+//                                        "LoginScreen",
+//                                        "userId = ${firebaseUser?.displayName ?: ""}"
+//                                    )
+//                                    Log.d(
+//                                        "LoginScreen",
+//                                        "userId = ${userViewModel.getYourUserId()}"
+//                                    )
+//
+//                                    dataStore.edit { preferences ->
+//                                        preferences[booleanPreferencesKey("isLoggedIn")] =
+//                                            true
+//                                    }
+//
+//                                    userViewModel.loadUsers()
+//
+//                                    userViewModel.loadYourUser()
+//
+//                                    bookmarkViewModel.loadBookmarks()
+//
+//                                    ifSeenReceivedShotViewModel.loadIfSeenReceivedShots()
+//
+//                                    receivedLikeViewModel.loadReceivedLikes()
+//
+//                                    sentLikeViewModel.loadSentLikes()
+//
+//                                    receivedShotViewModel.loadReceivedShots()
+//
+//                                    sentShotViewModel.loadSentShots()
+//
+//                                    blockedUserViewModel.loadBlockedUsers()
+//
+//                                    userWhoBlockedYouViewModel.loadUsersWhoBlockedYou()
+//
+//                                    editProfileViewModel.loadEditProfileOptions()
+//
+//                                    NetworkBoundResource().createUser(userViewModel)
+//
+//                                    client = GetStreamClientModule.provideGetStreamClient(
+//                                        context,
+//                                        userViewModel,
+//                                        firebaseViewModel
+//                                    )
+//
+//                                    Log.d("LoginScreen", "client on LoginScreen = $client")
+//                                    Log.d("LoginScreen", "user = $user")
+//                                    Log.d(
+//                                        "LoginScreen",
+//                                        "userId = ${userViewModel.getYourUserId()}"
+//                                    )
+//                                    Log.d("LoginScreen", "destination = $destination")
+//
+//                                    scope.launch(Dispatchers.Main) {
+//                                        navController.navigate(
+//                                            "users"
+//                                        )
+//                                    }
+
+                                    initUser(
+                                        userViewModel,
+                                        bookmarkViewModel,
+                                        ifSeenReceivedShotViewModel,
+                                        receivedLikeViewModel,
+                                        sentLikeViewModel,
+                                        receivedShotViewModel,
+                                        sentShotViewModel,
+                                        blockedUserViewModel,
+                                        userWhoBlockedYouViewModel,
+                                        editProfileViewModel,
+                                        firebaseViewModel,
+                                        context
+                                    ) {}
+
+                                    scope.launch(Dispatchers.IO) {
                                         dataStore.edit { preferences ->
-                                            preferences[booleanPreferencesKey("isLoggedIn")] = true
+                                            preferences[booleanPreferencesKey("isLoggedIn")] =
+                                                true
                                         }
+                                    }
 
-                                        client = GetStreamClientModule.provideGetStreamClient(
-                                            context,
-                                            usersViewModel
+                                    scope.launch(Dispatchers.Main) {
+                                        navController.navigate(
+                                            "users"
                                         )
-
-                                        NetworkBoundResource().createUser(userId)
-
-                                        if (!user?.id.isNullOrBlank()) {
-
-//                                    usersViewModel.userDao.insertAll(usersViewModel.getUsersFromRepo())
-                                            val users = usersViewModel.getUsersFromRepo()
-                                            Log.d("MainActivity", "users: $users")
-                                            userDao.insertAll(users)
-
-                                            val userData: MutableMap<String, Any> = mutableMapOf()
-                                            val mediaItems: MutableMap<String, Uri> = mutableMapOf()
-
-                                            userData["latitude"] = user?.latitude ?: 0.0
-                                            userData["longitude"] = user?.longitude ?: 0.0
-
-                                            usersViewModel.saveUserDataToFirebase(
-                                                user?.id ?: "",
-                                                userData,
-                                                mediaItems,
-                                                context
-                                            ) {}
-
-
-                                            val bookmark = Bookmark(
-                                                user?.id ?: "",
-                                                bookmarkViewModel.getBookmarksFromFirebase(
-                                                    user?.id ?: ""
-                                                )
-                                                    .toMutableList()
-                                            )
-                                            bookmarkDao.insert(bookmark)
-                                            val sentLike = SentLike(
-                                                user?.id ?: "",
-                                                sentLikeViewModel.getSentLikesFromFirebase(
-                                                    user?.id ?: ""
-                                                )
-                                                    .toMutableList()
-                                            )
-                                            sentLikeDao.insert(sentLike)
-                                            val receivedLike = ReceivedLike(
-                                                user?.id ?: "",
-                                                receivedLikeViewModel.getReceivedLikesFromFirebase(
-                                                    user?.id ?: ""
-                                                )
-                                                    .toMutableList()
-                                            )
-                                            receivedLikeDao.insert(receivedLike)
-                                        }
-
-                                        try {
-                                            receivedLikeViewModel.storeReceivedLikeInRoom(
-                                                user?.id ?: ""
-                                            )
-                                            Log.d("MainActivity", "We've stored receivedLike")
-                                        } catch (e: Exception) {
-                                            Log.d("MainActivity", "Exception: $e")
-                                        }
-                                        try {
-                                            sentLikeViewModel.storeSentLikeInRoom(user?.id ?: "")
-                                            Log.d("MainActivity", "We've stored sentLike")
-                                        } catch (e: Exception) {
-                                            Log.d("MainActivity", "Exception: $e")
-                                        }
-                                        try {
-                                            receivedShotViewModel.storeReceivedShotInRoom(
-                                                false,
-                                                context,
-                                                user?.id ?: ""
-                                            )
-                                            Log.d("MainActivity", "We've stored receivedShot")
-                                        } catch (e: Exception) {
-                                            Log.d("MainActivity", "Exception: $e")
-                                        }
-                                        try {
-                                            sentShotViewModel.storeSentShotInRoom(user?.id ?: "")
-                                            Log.d("MainActivity", "We've stored sentShot")
-                                        } catch (e: Exception) {
-                                            Log.d("MainActivity", "Exception: $e")
-                                        }
                                     }
+
                                 }
-
-                                Log.d("LoginScreen", "userId = ${userId}")
-                                Log.d("LoginScreen", "destination = $destination")
-
-                                navController.navigate(
-                                    when (destination) {
-                                        0 -> "users"
-                                        1 -> "signupUsername"
-                                        2 -> "signupAge"
-                                        3 -> "signupDisplayName"
-                                        4 -> "signupMedia"
-                                        5 -> "signupProfileVideo"
-                                        6 -> "signupAboutMe"
-                                        7 -> "signupPrompts"
-                                        8 -> "signupLink"
-                                        9 -> "signupDetails"
-                                        10 -> "signupEssentials"
-                                        11 -> "signupFilter"
-                                        12 -> "signupHabits"
-                                        13 -> "users"
-                                        else -> "login"
-                                    }
-                                )
-
-                                snackbar.showSnackbar(
-                                    message = "Your account has been found!",
-                                    actionLabel = "OK"
-                                )
-
                             }
-
                         }
                     },
                     modifier = Modifier
@@ -555,6 +535,60 @@ fun ShowSnackbar(
             )
         }
     }
+}
+
+fun initUser(
+    userViewModel: UserViewModel,
+    bookmarkViewModel: BookmarkViewModel,
+    ifSeenReceivedShotViewModel: IfSeenReceivedShotViewModel,
+    receivedLikeViewModel: ReceivedLikeViewModel,
+    sentLikeViewModel: SentLikeViewModel,
+    receivedShotViewModel: ReceivedShotViewModel,
+    sentShotViewModel: SentShotViewModel,
+    blockedUserViewModel: BlockedUserViewModel,
+    userWhoBlockedYouViewModel: UserWhoBlockedYouViewModel,
+    editProfileViewModel: EditProfileViewModel,
+    firebaseViewModel: FirebaseViewModel,
+    context: Context,
+    initUserCallback: () -> Unit
+) {
+
+
+//    dataStore.edit { preferences ->
+//        preferences[booleanPreferencesKey("isLoggedIn")] =
+//            true
+//    }
+
+    userViewModel.loadUsers()
+
+    userViewModel.loadYourUser()
+
+    bookmarkViewModel.loadBookmarks()
+
+    ifSeenReceivedShotViewModel.loadIfSeenReceivedShots()
+
+    receivedLikeViewModel.loadReceivedLikes()
+
+    sentLikeViewModel.loadSentLikes()
+
+    receivedShotViewModel.loadReceivedShots()
+
+    sentShotViewModel.loadSentShots()
+
+    blockedUserViewModel.loadBlockedUsers()
+
+    userWhoBlockedYouViewModel.loadUsersWhoBlockedYou()
+
+    editProfileViewModel.loadEditProfileOptions()
+
+    NetworkBoundResource().createUser(userViewModel)
+
+    client = GetStreamClientModule.provideGetStreamClient(
+        context,
+        userViewModel,
+        firebaseViewModel
+    )
+
 }
 
 //@Preview

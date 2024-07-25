@@ -1,5 +1,6 @@
 package com.example.shots.ui.theme
 
+import android.content.ContentValues
 import android.content.ContentValues.TAG
 import android.content.Context
 import android.net.Uri
@@ -17,8 +18,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
-import com.example.shots.RoomModule
-import com.example.shots.data.AppDatabase
+import com.example.shots.data.BlockedUserRepository
 import com.example.shots.data.Distance
 import com.example.shots.data.Drinking
 import com.example.shots.data.Education
@@ -34,120 +34,339 @@ import com.example.shots.data.ShowMe
 import com.example.shots.data.Smoking
 import com.example.shots.data.TypeOfMedia
 import com.example.shots.data.User
-import com.example.shots.data.UserDao
-import com.google.firebase.auth.FirebaseAuth
+import com.example.shots.data.UserRepository
+import com.example.shots.data.UserWhoBlockedYouRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.util.concurrent.CompletableFuture
 import javax.inject.Inject
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.sqrt
+
+//sealed interface UsersUiState {
+//    object Loading : UsersUiState
+//    data class Success(val users: List<User>) : UsersUiState
+//
+////    data class Error(val errorMessage: ErrorMessage) : UsersUiState
+//
+//    data class Error(val errorMessage: String) : UsersUiState
+//
+//}
+
+data class UsersUiState(
+    var users: List<User> = emptyList(),
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null
+)
 
 @HiltViewModel
-class UsersViewModel @Inject constructor(
+class UserViewModel @Inject constructor(
     private val firebaseRepository: FirebaseRepository,
-    private val firebaseAuth: FirebaseAuth,
-    private val appDatabase: AppDatabase
+    private val userRepository: UserRepository,
+    private val userWhoBlockedYouRepository: UserWhoBlockedYouRepository,
+    private val blockedUserRepository: BlockedUserRepository,
+    private val dispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
-    val userDao = RoomModule.provideUserDao(appDatabase)
-    val blockedUserDao = RoomModule.provideBlockedUserDao(appDatabase)
-    val userWhoBlockedYouDao = RoomModule.provideUserWhoBlockedYouDao(appDatabase)
-
-    val locationViewModel = LocationViewModel(firebaseRepository, firebaseAuth, appDatabase)
+    val locationViewModel = LocationViewModel(
+        firebaseRepository,
+        userRepository,
+        dispatcher
+    )
 
     // Use MutableState to hold the user data
+
     private val _user = MutableStateFlow<User?>(null)
-    val user: StateFlow<User?> = _user
+    val user: StateFlow<User?> = _user.asStateFlow()
+
+    private val _uiState = MutableStateFlow<UsersUiState>(UsersUiState())
+    val uiState: StateFlow<UsersUiState> = _uiState.asStateFlow()
+
+
+    fun getYourUserId(): String {
+        return userRepository.getYourUserId()
+    }
+
+    init {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                loadUsers()
+                if (getYourUserId().isNotEmpty()) {
+                    fetchUpdatedCurrentUser().collect { returnedUser ->
+                        _user.value = returnedUser
+                    }
+                }
+            } catch (npe: NullPointerException) {
+                Log.d("UserViewModel", "Exception - $npe")
+            }
+        }
+    }
+
+    //    sealed class UiState {
+//        object Initial : UiState()
+//        data class AuthSuccess(val user: FirebaseUser) : UiState()
+//        object AuthFailed : UiState()
+//    }
+
 
     // Only to be used when building user in signup initially
     fun getInitialUser(): User {
         return User()
     }
 
+    fun fetchUser(): User? {
+        // Code to fetch the user data from a repository or data source
+        _user.value = user.value
+        return _user.value
+    }
+
+    private suspend fun fetchUpdatedUsers(): Flow<List<User>> {
+        return userRepository.fetchUpdatedUsers()
+    }
+
+    suspend fun getCurrentUser(userId: String?): Flow<User> {
+        return userRepository.getCurrentUser()
+    }
+
+    private suspend fun fetchUpdatedCurrentUser(): Flow<User> {
+        return userRepository.fetchUpdatedCurrentUser()
+    }
+
+
     // Fetch and set the user data directly
-    fun getUser(): User? {
+    fun getUser(): User {
+        return userRepository.getUser(getYourUserId())
 
-        fun getUserSynchronously(): User? {
-            val completableFuture = CompletableFuture<User?>()
-            viewModelScope.launch(Dispatchers.IO) {
-                val userId = firebaseAuth.currentUser?.displayName ?: ""
-                val fetchedUser = fetchUserFromRoom(userId)
-                completableFuture.complete(fetchedUser)
+//        fun getUserSynchronously(): User? {
+//            val completableFuture = CompletableFuture<User?>()
+//            viewModelScope.launch(Dispatchers.IO) {
+//                val yourUserId = firebaseAuth.currentUser?.displayName ?: ""
+//                val fetchedUser = fetchUserFromRoom(yourUserId)
+//                completableFuture.complete(fetchedUser)
+//            }
+//
+//            return completableFuture.get()
+//        }
+//
+//        // Call the inner function for synchronous retrieval
+//        return getUserSynchronously()
+    }
+
+    fun loadYourUser() {
+        viewModelScope.launch(Dispatchers.IO) {
+            getCurrentUser(getYourUserId()).collect { returnedUser ->
+                Log.d("UserViewModel", "User - $returnedUser")
+                _user.value = returnedUser
             }
-
-            return completableFuture.get()
         }
-
-        // Call the inner function for synchronous retrieval
-        return getUserSynchronously()
     }
 
-    // Function to update specific fields of the user
-    fun updateUserField(updateAction: (User) -> User) {
-        _user.value = updateAction(_user.value ?: User())
+    fun resetYourUser() {
+        viewModelScope.launch(Dispatchers.IO) {
+            _user.value = null
+        }
     }
 
+    fun loadUsers() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val yourUser = fetchUser()
 
-    suspend fun getUsersFromRepo(): List<User> {
-        return firebaseRepository.getUsers()
-    }
+                val cards = mutableListOf<User>()
 
-    fun storeUserInRoom(userId: String) {
-        viewModelScope.launch {
-            withContext(Dispatchers.IO) {
-                try {
-                    val user = getUserDataFromRepo(userId)
-                    Log.d("UsersViewModel", "The value for id - ${user?.id}")
-                    Log.d("UsersViewModel", "The value for latitude - ${user?.latitude}")
-                    Log.d("UsersViewModel", "The value for longitude - ${user?.longitude}")
-                    try {
-                        if (user != null && user.id.isNotBlank()) {
-                            userDao.update(user)
-                            Log.d("UsersViewModel", "Updated successfully")
-                        }
-                    } catch (npe: NullPointerException) {
-                        if (user != null && user.id.isNotBlank()) {
-                            userDao.insert(user)
-                            Log.d("UsersViewModel", "Insert failed - ${npe.message}")
+                var usersWhoBlockedYouList = mutableListOf<String>()
+
+                var blockedUsersList = mutableListOf<String>()
+
+                userWhoBlockedYouRepository.fetchUpdatedUsersWhoBlockedYou()
+                    .collect { returnedUsersWhoBlockedYouList ->
+                        usersWhoBlockedYouList = returnedUsersWhoBlockedYouList.toMutableList()
+                    }
+
+                blockedUserRepository.fetchUpdatedBlockedUsers()
+                    .collect { returnedBlockedUsersList ->
+                        blockedUsersList = returnedBlockedUsersList.toMutableList()
+                    }
+
+                fetchUpdatedUsers().collect { updatedUsers ->
+                    for (updatedUser in updatedUsers) {
+                        if (updatedUser.id !in blockedUsersList && updatedUser.id !in usersWhoBlockedYouList) {
+                            if (updatedUser.mediaOne?.isNotBlank() == true &&
+                                updatedUser.displayName?.isNotBlank() == true &&
+                                updatedUser.mediaProfileVideo?.isNotBlank() == true &&
+                                updatedUser.gender != Gender.UNKNOWN &&
+                                updatedUser.age >= (yourUser?.ageMinToShow ?: 18) &&
+                                updatedUser.age <= (yourUser?.ageMaxToShow ?: 35)
+                            ) {
+
+                                val distance = locationViewModel.calculateDistance(
+                                    yourUser?.latitude ?: 0.0,
+                                    yourUser?.longitude ?: 0.0,
+                                    updatedUser.latitude ?: 0.0, updatedUser.longitude ?: 0.0
+                                )
+
+                                val distanceToShowUsers = when (yourUser?.showUsers) {
+                                    Distance.TEN -> 10
+                                    Distance.TWENTY -> 20
+                                    Distance.THIRTY -> 30
+                                    Distance.FORTY -> 40
+                                    Distance.FIFTY -> 50
+                                    Distance.SIXTY -> 60
+                                    Distance.SEVENTY -> 70
+                                    Distance.EIGHTY -> 80
+                                    Distance.NINETY -> 90
+                                    Distance.ONE_HUNDRED -> 100
+                                    Distance.ANYWHERE -> Int.MAX_VALUE
+                                    null -> 10
+                                }
+
+                                val distanceToAcceptShots = when (yourUser?.acceptShots) {
+                                    Distance.TEN -> 10
+                                    Distance.TWENTY -> 20
+                                    Distance.THIRTY -> 30
+                                    Distance.FORTY -> 40
+                                    Distance.FIFTY -> 50
+                                    Distance.SIXTY -> 60
+                                    Distance.SEVENTY -> 70
+                                    Distance.EIGHTY -> 80
+                                    Distance.NINETY -> 90
+                                    Distance.ONE_HUNDRED -> 100
+                                    Distance.ANYWHERE -> Int.MAX_VALUE
+                                    null -> 10
+                                }
+
+                                if (distance <= distanceToShowUsers && distance <= distanceToAcceptShots) {
+                                    if ((yourUser?.showMe == ShowMe.MEN && updatedUser.gender == Gender.MAN) ||
+                                        (yourUser?.showMe == ShowMe.WOMEN && updatedUser.gender == Gender.WOMAN) ||
+                                        (yourUser?.showMe == ShowMe.ANYONE && (updatedUser.gender == Gender.WOMAN
+                                                || updatedUser.gender == Gender.MAN ||
+                                                updatedUser.gender == Gender.NON_BINARY))
+                                    ) {
+                                        cards += updatedUser
+                                    }
+                                }
+
+                            }
                         }
                     }
-                } catch (e: Exception) {
-                    Log.d("UsersViewModel", "Exception - $e")
                 }
+
+                Log.d("UserViewModel", "cards - $cards")
+
+                _uiState.value = UsersUiState().copy(users = cards.toMutableList())
+            } catch (e: Exception) {
+                _uiState.value = UsersUiState().copy(errorMessage = e.message ?: "Unknown error")
             }
         }
     }
 
-    fun storeUsersInRoom(users: List<User>) {
-        viewModelScope.launch {
-            withContext(Dispatchers.IO) {
-                try {
-                    try {
-                        userDao.updateAll(users)
-                    } catch (npe: NullPointerException) {
-                        userDao.insertAll(users)
-                    }
-                } catch (e: Exception) {
-                    Log.d("UsersViewModel", "Exception - $e")
-                }
-            }
+    fun updateUser(user: User) {
+        viewModelScope.launch(Dispatchers.IO) {
+            userRepository.upsertUser(user)
         }
     }
 
-    suspend fun fetchUserFromRoom(userId: String): User {
-        return withContext(Dispatchers.IO) {
-            userDao.findById(userId)
+    fun updateUsers(users: List<User>) {
+        viewModelScope.launch(Dispatchers.IO) {
+            userRepository.upsertUsers(users)
         }
     }
 
-    suspend fun fetchAllUsersFromRoom(): List<User> {
-        return withContext(Dispatchers.IO) {
-            userDao.getAll()
+    fun storeUser(user: User) {
+        viewModelScope.launch(Dispatchers.IO) {
+            userRepository.storeUser(user)
         }
     }
+
+    fun storeUsers(users: List<User>) {
+        viewModelScope.launch(Dispatchers.IO) {
+            userRepository.storeUsers(users)
+        }
+    }
+
+//    fun getUsersFromRepo(): List<User> {
+//        return userRepository.getAllUsers()
+////        return firebaseRepository.getUsers()
+//    }
+
+//    fun storeUserInRoom(user: User) {
+//        viewModelScope.launch(Dispatchers.IO) {
+//            withContext(Dispatchers.IO) {
+//                userRepository.storeUser(user)
+//            }
+//        }
+//
+////        viewModelScope.launch(Dispatchers.IO) {
+////            withContext(Dispatchers.IO) {
+////                try {
+////                    val user = getUserDataFromRepo(yourUserId)
+////                    Log.d("UserViewModel", "The value for id - ${user?.id}")
+////                    Log.d("UserViewModel", "The value for latitude - ${user?.latitude}")
+////                    Log.d("UserViewModel", "The value for longitude - ${user?.longitude}")
+////                    try {
+////                        if (user != null && user.id.isNotBlank()) {
+////                            userDao.update(user)
+////                            Log.d("UserViewModel", "Updated successfully")
+////                        }
+////                    } catch (npe: NullPointerException) {
+////                        if (user != null && user.id.isNotBlank()) {
+////                            userDao.insert(user)
+////                            Log.d("UserViewModel", "Insert failed - ${npe.message}")
+////                        }
+////                    }
+////                } catch (e: Exception) {
+////                    Log.d("UserViewModel", "Exception - $e")
+////                }
+////            }
+////        }
+//
+//    }
+//
+//    fun storeUsersInRoom(users: List<User>) {
+//        viewModelScope.launch(Dispatchers.IO) {
+//            withContext(Dispatchers.IO) {
+//                userRepository.storeUsers(users)
+//
+//            }
+//        }
+//
+////        viewModelScope.launch(Dispatchers.IO) {
+////            withContext(Dispatchers.IO) {
+////                try {
+////                    try {
+////                        userDao.updateAll(users)
+////                    } catch (npe: NullPointerException) {
+////                        userDao.insertAll(users)
+////                    }
+////                } catch (e: Exception) {
+////                    Log.d("UserViewModel", "Exception - $e")
+////                }
+////            }
+////        }
+//    }
+
+    fun fetchUserFromRoom(userId: String): User {
+        return userRepository.getUser(userId)
+//        return withContext(Dispatchers.IO) {
+//            userDao.findById(yourUserId)
+//        }
+    }
+
+//    fun fetchAllUsersFromRoom(): List<User> {
+//        return userRepository.getAllUsers()
+////        return withContext(Dispatchers.IO) {
+////            userDao.getAll()
+////        }
+//    }
 
 
     // Fetch and set the user data directly
@@ -158,24 +377,34 @@ class UsersViewModel @Inject constructor(
             viewModelScope.launch(Dispatchers.IO) {
                 try {
                     val user = getUser()
-
-                    val blockedUsers = RoomModule.provideBlockedUserDao(appDatabase)
-                        .findById(user?.id ?: "").blockedUsers.toMutableList()
-                    val usersWhoBlockedYou = RoomModule.provideUserWhoBlockedYouDao(appDatabase)
-                        .findById(user?.id ?: "").usersWhoBlockedYou.toMutableList()
-                    val users = userDao.getAll()
+                    val blockedUsers = blockedUserRepository.getBlockedUsers()
+//                    val blockedUsers = RoomModule.provideBlockedUserDao(appDatabase)
+//                        .findById(user.id ?: "").blockedUsers.toMutableList()
+                    val usersWhoBlockedYou = userWhoBlockedYouRepository.getUsersWhoBlockedYou()
+                    val users = userRepository.getAllUsers()
                     val filteredUsers = emptyList<User>().toMutableList()
-                    for (eachUser in users) {
-                        if (eachUser.id !in blockedUsers && eachUser.id !in usersWhoBlockedYou) {
-                            filteredUsers += eachUser
+                    val combinedFlow = combine(
+                        users,
+                        blockedUsers,
+                        usersWhoBlockedYou
+                    ) { usersList, blockedUsersList, usersWhoBlockedYouList ->
+                        Triple(usersList, blockedUsersList, usersWhoBlockedYouList)
+                    }
+                    combinedFlow.collect { (usersList, blockedUsersList, usersWhoBlockedYouList) ->
+                        for (eachUser in usersList) {
+                            if (eachUser.id !in blockedUsersList && eachUser.id !in usersWhoBlockedYouList) {
+                                filteredUsers += eachUser
+                            }
                         }
                     }
-                    Log.d("UsersViewModel", "blockedUsers - $blockedUsers")
-                    Log.d("UsersViewModel", "usersWhoBlockedYou - $usersWhoBlockedYou")
-                    Log.d("UsersViewModel", "Users - $users")
-                    Log.d("UsersViewModel", "filteredUsers - $filteredUsers")
+                    Log.d("UserViewModel", "blockedUsers - $blockedUsers")
+                    Log.d("UserViewModel", "usersWhoBlockedYou - $usersWhoBlockedYou")
+                    Log.d("UserViewModel", "Users - $users")
+                    Log.d("UserViewModel", "filteredUsers - $filteredUsers")
                     completableFuture.complete(filteredUsers.toList())
                 } catch (npe: NullPointerException) {
+                    completableFuture.complete(emptyList())
+                } catch(e: Exception) {
                     completableFuture.complete(emptyList())
                 }
             }
@@ -212,208 +441,224 @@ class UsersViewModel @Inject constructor(
                     }
 
 
-                    val blockedUsers = RoomModule.provideBlockedUserDao(appDatabase)
-                        .findById(user?.id ?: "").blockedUsers.toMutableList()
-                    val usersWhoBlockedYou = RoomModule.provideUserWhoBlockedYouDao(appDatabase)
-                        .findById(user?.id ?: "").usersWhoBlockedYou.toMutableList()
-                    val users = userDao.getAll()
+//                    val blockedUsers = RoomModule.provideBlockedUserDao(appDatabase)
+//                        .findById(user?.id ?: "").blockedUsers.toMutableList()
+//                    val usersWhoBlockedYou = RoomModule.provideUserWhoBlockedYouDao(appDatabase)
+//                        .findById(user?.id ?: "").usersWhoBlockedYou.toMutableList()
+//                    val users = userDao.getAll()
+
+                    val blockedUsers = blockedUserRepository.getBlockedUsers()
+                    val usersWhoBlockedYou = userWhoBlockedYouRepository.getUsersWhoBlockedYou()
+                    val users = userRepository.getAllUsers()
+
                     val filteredUsers = emptyList<User>().toMutableList()
-                    for (eachUser in users) {
 
-                        val theirAcceptShotsMiles = when (eachUser.acceptShots) {
-                            Distance.TEN -> 10
-                            Distance.TWENTY -> 20
-                            Distance.THIRTY -> 30
-                            Distance.FORTY -> 40
-                            Distance.FIFTY -> 50
-                            Distance.SIXTY -> 60
-                            Distance.SEVENTY -> 70
-                            Distance.EIGHTY -> 80
-                            Distance.NINETY -> 90
-                            Distance.ONE_HUNDRED -> 100
-                            Distance.ANYWHERE -> 15000
-                            else -> 10
-                        }
+                    val combinedFlow = combine(
+                        blockedUsers, usersWhoBlockedYou,
+                        users
+                    ) { blockedUsersList, usersWhoBlockedYouList, usersList ->
+                        Triple(blockedUsersList, usersWhoBlockedYouList, usersList)
+                    }
 
-                        if (eachUser.id !in blockedUsers && eachUser.id !in usersWhoBlockedYou) {
+                    combinedFlow.collect { (usersWhoBlockedYouList, blockedUsersList, usersList) ->
+                        for (eachUser in usersList) {
 
-                            //this code filters cards based on what is being looked for
-                            if (user?.gender == Gender.MAN) {
-                                if (user.showMe == ShowMe.WOMEN) {
-                                    if (eachUser.gender == Gender.WOMAN) {
-                                        if (eachUser.showMe == ShowMe.MEN || eachUser.showMe == ShowMe.ANYONE) {
-                                            val distance = locationViewModel.calculateDistance(
-                                                user.latitude ?: 0.0,
-                                                user.longitude ?: 0.0,
-                                                eachUser.latitude ?: 0.0,
-                                                eachUser.longitude ?: 0.0
-                                            )
-                                            if (distance <= yourShowUsersMiles &&
-                                                distance <= theirAcceptShotsMiles
-                                            ) {
-                                                filteredUsers += eachUser
-                                            }
-                                        }
-                                    }
-                                } else if (user.showMe == ShowMe.MEN) {
-                                    if (eachUser.gender == Gender.MAN) {
-                                        if (eachUser.showMe == ShowMe.MEN || eachUser.showMe == ShowMe.ANYONE) {
-                                            val distance = locationViewModel.calculateDistance(
-                                                user.latitude ?: 0.0,
-                                                user.longitude ?: 0.0,
-                                                eachUser.latitude ?: 0.0,
-                                                eachUser.longitude ?: 0.0
-                                            )
-                                            if (distance <= yourShowUsersMiles &&
-                                                distance <= theirAcceptShotsMiles
-                                            ) {
-                                                filteredUsers += eachUser
-                                            }
-                                        }
-                                    }
-                                } else if (user.showMe == ShowMe.ANYONE) {
-                                    if (eachUser.gender == Gender.MAN || eachUser.gender == Gender.WOMAN || eachUser.gender == Gender.NON_BINARY) {
-                                        if (eachUser.showMe == ShowMe.MEN || eachUser.showMe == ShowMe.ANYONE) {
-                                            val distance = locationViewModel.calculateDistance(
-                                                user.latitude ?: 0.0,
-                                                user.longitude ?: 0.0,
-                                                eachUser.latitude ?: 0.0,
-                                                eachUser.longitude ?: 0.0
-                                            )
-                                            if (distance <= yourShowUsersMiles &&
-                                                distance <= theirAcceptShotsMiles
-                                            ) {
-                                                filteredUsers += eachUser
-                                            }
-                                        }
-                                    }
-                                }
-                            } else if (user?.gender == Gender.WOMAN) {
-                                if (user.showMe == ShowMe.MEN) {
-                                    if (eachUser.gender == Gender.MAN) {
-                                        if (eachUser.showMe == ShowMe.WOMEN || eachUser.showMe == ShowMe.ANYONE) {
-                                            val distance = locationViewModel.calculateDistance(
-                                                user.latitude ?: 0.0,
-                                                user.longitude ?: 0.0,
-                                                eachUser.latitude ?: 0.0,
-                                                eachUser.longitude ?: 0.0
-                                            )
-                                            Log.d("UsersViewModel", "distance - $distance")
-                                            if (distance <= yourShowUsersMiles &&
-                                                distance <= theirAcceptShotsMiles
-                                            ) {
-                                                filteredUsers += eachUser
-                                            }
-                                        }
-                                    }
-                                } else if (user.showMe == ShowMe.WOMEN) {
-                                    if (eachUser.gender == Gender.WOMAN) {
-                                        if (eachUser.showMe == ShowMe.WOMEN || eachUser.showMe == ShowMe.ANYONE) {
-                                            val distance = locationViewModel.calculateDistance(
-                                                user.latitude ?: 0.0,
-                                                user.longitude ?: 0.0,
-                                                eachUser.latitude ?: 0.0,
-                                                eachUser.longitude ?: 0.0
-                                            )
-                                            if (distance <= yourShowUsersMiles &&
-                                                distance <= theirAcceptShotsMiles
-                                            ) {
-                                                filteredUsers += eachUser
-                                            }
-                                        }
-                                    }
-                                } else if (user.showMe == ShowMe.ANYONE) {
-                                    if (eachUser.gender == Gender.MAN || eachUser.gender == Gender.WOMAN || eachUser.gender == Gender.NON_BINARY) {
-                                        if (eachUser.showMe == ShowMe.WOMEN || eachUser.showMe == ShowMe.ANYONE) {
-                                            val distance = locationViewModel.calculateDistance(
-                                                user.latitude ?: 0.0,
-                                                user.longitude ?: 0.0,
-                                                eachUser.latitude ?: 0.0,
-                                                eachUser.longitude ?: 0.0
-                                            )
-                                            if (distance <= yourShowUsersMiles &&
-                                                distance <= theirAcceptShotsMiles
-                                            ) {
-                                                filteredUsers += eachUser
-                                            }
-                                        }
-                                    }
-                                }
-                            } else if (user?.gender == Gender.NON_BINARY) {
-                                if (user.showMe == ShowMe.MEN) {
-                                    if (eachUser.gender == Gender.MAN) {
-                                        if (eachUser.showMe == ShowMe.ANYONE) {
-                                            val distance = locationViewModel.calculateDistance(
-                                                user.latitude ?: 0.0,
-                                                user.longitude ?: 0.0,
-                                                eachUser.latitude ?: 0.0,
-                                                eachUser.longitude ?: 0.0
-                                            )
-                                            if (distance <= yourShowUsersMiles &&
-                                                distance <= theirAcceptShotsMiles
-                                            ) {
-                                                filteredUsers += eachUser
-                                            }
-                                        }
-                                    }
-                                } else if (user.showMe == ShowMe.WOMEN) {
-                                    if (eachUser.gender == Gender.WOMAN) {
-                                        if (eachUser.showMe == ShowMe.ANYONE) {
-                                            val distance = locationViewModel.calculateDistance(
-                                                user.latitude ?: 0.0,
-                                                user.longitude ?: 0.0,
-                                                eachUser.latitude ?: 0.0,
-                                                eachUser.longitude ?: 0.0
-                                            )
-                                            if (distance <= yourShowUsersMiles &&
-                                                distance <= theirAcceptShotsMiles
-                                            ) {
-                                                filteredUsers += eachUser
-                                            }
-                                        }
-                                    }
-                                } else if (user.showMe == ShowMe.ANYONE) {
-                                    if (eachUser.gender == Gender.MAN || eachUser.gender == Gender.WOMAN || eachUser.gender == Gender.NON_BINARY) {
-                                        if (eachUser.showMe == ShowMe.ANYONE) {
-                                            val distance = locationViewModel.calculateDistance(
-                                                user.latitude ?: 0.0,
-                                                user.longitude ?: 0.0,
-                                                eachUser.latitude ?: 0.0,
-                                                eachUser.longitude ?: 0.0
-                                            )
-                                            if (distance <= yourShowUsersMiles &&
-                                                distance <= theirAcceptShotsMiles
-                                            ) {
-                                                filteredUsers += eachUser
-                                            }
-                                        }
-                                    }
-                                }
-                            } else {
-                                if (user?.showMe == ShowMe.MEN) {
-                                    if (eachUser.gender == Gender.MAN) {
-                                        filteredUsers += eachUser
-                                    }
-                                } else if (user?.showMe == ShowMe.WOMEN) {
-                                    if (eachUser.gender == Gender.WOMAN) {
-                                        filteredUsers += eachUser
-                                    }
-                                } else if (user?.showMe == ShowMe.ANYONE) {
-                                    if (eachUser.gender == Gender.MAN
-                                        || eachUser.gender == Gender.WOMAN
-                                        || eachUser.gender == Gender.NON_BINARY
-                                    ) {
-                                        filteredUsers += eachUser
-                                    }
-                                }
+                            val theirAcceptShotsMiles = when (eachUser.acceptShots) {
+                                Distance.TEN -> 10
+                                Distance.TWENTY -> 20
+                                Distance.THIRTY -> 30
+                                Distance.FORTY -> 40
+                                Distance.FIFTY -> 50
+                                Distance.SIXTY -> 60
+                                Distance.SEVENTY -> 70
+                                Distance.EIGHTY -> 80
+                                Distance.NINETY -> 90
+                                Distance.ONE_HUNDRED -> 100
+                                Distance.ANYWHERE -> 15000
+                                else -> 10
                             }
 
+                            if (eachUser.id !in blockedUsersList && eachUser.id !in usersWhoBlockedYouList) {
+
+                                //this code filters cards based on what is being looked for
+                                if (user.gender == Gender.MAN) {
+                                    if (user.showMe == ShowMe.WOMEN) {
+                                        if (eachUser.gender == Gender.WOMAN) {
+                                            if (eachUser.showMe == ShowMe.MEN || eachUser.showMe == ShowMe.ANYONE) {
+                                                val distance = locationViewModel.calculateDistance(
+                                                    user.latitude ?: 0.0,
+                                                    user.longitude ?: 0.0,
+                                                    eachUser.latitude ?: 0.0,
+                                                    eachUser.longitude ?: 0.0
+                                                )
+                                                if (distance <= yourShowUsersMiles &&
+                                                    distance <= theirAcceptShotsMiles
+                                                ) {
+                                                    filteredUsers += eachUser
+                                                }
+                                            }
+                                        }
+                                    } else if (user.showMe == ShowMe.MEN) {
+                                        if (eachUser.gender == Gender.MAN) {
+                                            if (eachUser.showMe == ShowMe.MEN || eachUser.showMe == ShowMe.ANYONE) {
+                                                val distance = locationViewModel.calculateDistance(
+                                                    user.latitude ?: 0.0,
+                                                    user.longitude ?: 0.0,
+                                                    eachUser.latitude ?: 0.0,
+                                                    eachUser.longitude ?: 0.0
+                                                )
+                                                if (distance <= yourShowUsersMiles &&
+                                                    distance <= theirAcceptShotsMiles
+                                                ) {
+                                                    filteredUsers += eachUser
+                                                }
+                                            }
+                                        }
+                                    } else if (user.showMe == ShowMe.ANYONE) {
+                                        if (eachUser.gender == Gender.MAN || eachUser.gender == Gender.WOMAN || eachUser.gender == Gender.NON_BINARY) {
+                                            if (eachUser.showMe == ShowMe.MEN || eachUser.showMe == ShowMe.ANYONE) {
+                                                val distance = locationViewModel.calculateDistance(
+                                                    user.latitude ?: 0.0,
+                                                    user.longitude ?: 0.0,
+                                                    eachUser.latitude ?: 0.0,
+                                                    eachUser.longitude ?: 0.0
+                                                )
+                                                if (distance <= yourShowUsersMiles &&
+                                                    distance <= theirAcceptShotsMiles
+                                                ) {
+                                                    filteredUsers += eachUser
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else if (user?.gender == Gender.WOMAN) {
+                                    if (user.showMe == ShowMe.MEN) {
+                                        if (eachUser.gender == Gender.MAN) {
+                                            if (eachUser.showMe == ShowMe.WOMEN || eachUser.showMe == ShowMe.ANYONE) {
+                                                val distance = locationViewModel.calculateDistance(
+                                                    user.latitude ?: 0.0,
+                                                    user.longitude ?: 0.0,
+                                                    eachUser.latitude ?: 0.0,
+                                                    eachUser.longitude ?: 0.0
+                                                )
+                                                Log.d("UserViewModel", "distance - $distance")
+                                                if (distance <= yourShowUsersMiles &&
+                                                    distance <= theirAcceptShotsMiles
+                                                ) {
+                                                    filteredUsers += eachUser
+                                                }
+                                            }
+                                        }
+                                    } else if (user.showMe == ShowMe.WOMEN) {
+                                        if (eachUser.gender == Gender.WOMAN) {
+                                            if (eachUser.showMe == ShowMe.WOMEN || eachUser.showMe == ShowMe.ANYONE) {
+                                                val distance = locationViewModel.calculateDistance(
+                                                    user.latitude ?: 0.0,
+                                                    user.longitude ?: 0.0,
+                                                    eachUser.latitude ?: 0.0,
+                                                    eachUser.longitude ?: 0.0
+                                                )
+                                                if (distance <= yourShowUsersMiles &&
+                                                    distance <= theirAcceptShotsMiles
+                                                ) {
+                                                    filteredUsers += eachUser
+                                                }
+                                            }
+                                        }
+                                    } else if (user.showMe == ShowMe.ANYONE) {
+                                        if (eachUser.gender == Gender.MAN || eachUser.gender == Gender.WOMAN || eachUser.gender == Gender.NON_BINARY) {
+                                            if (eachUser.showMe == ShowMe.WOMEN || eachUser.showMe == ShowMe.ANYONE) {
+                                                val distance = locationViewModel.calculateDistance(
+                                                    user.latitude ?: 0.0,
+                                                    user.longitude ?: 0.0,
+                                                    eachUser.latitude ?: 0.0,
+                                                    eachUser.longitude ?: 0.0
+                                                )
+                                                if (distance <= yourShowUsersMiles &&
+                                                    distance <= theirAcceptShotsMiles
+                                                ) {
+                                                    filteredUsers += eachUser
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else if (user?.gender == Gender.NON_BINARY) {
+                                    if (user.showMe == ShowMe.MEN) {
+                                        if (eachUser.gender == Gender.MAN) {
+                                            if (eachUser.showMe == ShowMe.ANYONE) {
+                                                val distance = locationViewModel.calculateDistance(
+                                                    user.latitude ?: 0.0,
+                                                    user.longitude ?: 0.0,
+                                                    eachUser.latitude ?: 0.0,
+                                                    eachUser.longitude ?: 0.0
+                                                )
+                                                if (distance <= yourShowUsersMiles &&
+                                                    distance <= theirAcceptShotsMiles
+                                                ) {
+                                                    filteredUsers += eachUser
+                                                }
+                                            }
+                                        }
+                                    } else if (user.showMe == ShowMe.WOMEN) {
+                                        if (eachUser.gender == Gender.WOMAN) {
+                                            if (eachUser.showMe == ShowMe.ANYONE) {
+                                                val distance = locationViewModel.calculateDistance(
+                                                    user.latitude ?: 0.0,
+                                                    user.longitude ?: 0.0,
+                                                    eachUser.latitude ?: 0.0,
+                                                    eachUser.longitude ?: 0.0
+                                                )
+                                                if (distance <= yourShowUsersMiles &&
+                                                    distance <= theirAcceptShotsMiles
+                                                ) {
+                                                    filteredUsers += eachUser
+                                                }
+                                            }
+                                        }
+                                    } else if (user.showMe == ShowMe.ANYONE) {
+                                        if (eachUser.gender == Gender.MAN || eachUser.gender == Gender.WOMAN || eachUser.gender == Gender.NON_BINARY) {
+                                            if (eachUser.showMe == ShowMe.ANYONE) {
+                                                val distance = locationViewModel.calculateDistance(
+                                                    user.latitude ?: 0.0,
+                                                    user.longitude ?: 0.0,
+                                                    eachUser.latitude ?: 0.0,
+                                                    eachUser.longitude ?: 0.0
+                                                )
+                                                if (distance <= yourShowUsersMiles &&
+                                                    distance <= theirAcceptShotsMiles
+                                                ) {
+                                                    filteredUsers += eachUser
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    if (user?.showMe == ShowMe.MEN) {
+                                        if (eachUser.gender == Gender.MAN) {
+                                            filteredUsers += eachUser
+                                        }
+                                    } else if (user?.showMe == ShowMe.WOMEN) {
+                                        if (eachUser.gender == Gender.WOMAN) {
+                                            filteredUsers += eachUser
+                                        }
+                                    } else if (user?.showMe == ShowMe.ANYONE) {
+                                        if (eachUser.gender == Gender.MAN
+                                            || eachUser.gender == Gender.WOMAN
+                                            || eachUser.gender == Gender.NON_BINARY
+                                        ) {
+                                            filteredUsers += eachUser
+                                        }
+                                    }
+                                }
+
+                            }
                         }
                     }
-                    Log.d("UsersViewModel", "blockedUsers - $blockedUsers")
-                    Log.d("UsersViewModel", "usersWhoBlockedYou - $usersWhoBlockedYou")
-                    Log.d("UsersViewModel", "Users - $users")
-                    Log.d("UsersViewModel", "filteredUsers - $filteredUsers")
+
+                    Log.d("UserViewModel", "blockedUsers - $blockedUsers")
+                    Log.d("UserViewModel", "usersWhoBlockedYou - $usersWhoBlockedYou")
+                    Log.d("UserViewModel", "Users - $users")
+                    Log.d("UserViewModel", "filteredUsers - $filteredUsers")
                     completableFuture.complete(filteredUsers.toList())
                 } catch (npe: NullPointerException) {
                     completableFuture.complete(emptyList())
@@ -451,9 +696,9 @@ class UsersViewModel @Inject constructor(
 //                        }
 //                    }
 //                }
-//                Log.d("UsersViewModel", "blockedUsers - $blockedUsers")
-//                Log.d("UsersViewModel", "usersWhoBlockedYou - $usersWhoBlockedYou")
-//                Log.d("UsersViewModel", "Users - $users")
+//                Log.d("UserViewModel", "blockedUsers - $blockedUsers")
+//                Log.d("UserViewModel", "usersWhoBlockedYou - $usersWhoBlockedYou")
+//                Log.d("UserViewModel", "Users - $users")
 //                filteredUsers.toList()
 //            } catch (npe: NullPointerException) {
 //                emptyList()
@@ -493,13 +738,12 @@ class UsersViewModel @Inject constructor(
 
     fun updateFilter(
         user: User?,
-        usersViewModel: UsersViewModel,
+        userViewModel: UserViewModel,
         navController: NavHostController,
         context: Context,
         isDone: () -> Boolean
     ) {
-        viewModelScope.launch {
-            val userId = firebaseAuth.currentUser?.displayName ?: ""
+        viewModelScope.launch(Dispatchers.IO) {
             val userData: MutableMap<String, Any> = mutableMapOf()
             val mediaItems: MutableMap<String, Uri> = mutableMapOf()
 
@@ -547,7 +791,7 @@ class UsersViewModel @Inject constructor(
             userData["ageMaxToShow"] = user?.ageMaxToShow ?: "35"
 
             saveUserDataToFirebase(
-                userId,
+                getYourUserId(),
                 userData, mediaItems, context
             ) { wasSaved ->
                 if (wasSaved) {
@@ -559,11 +803,11 @@ class UsersViewModel @Inject constructor(
     }
 
     fun updateUser(
-        updatedExistingUser: User, usersViewModel: UsersViewModel,
+        updatedExistingUser: User, userId: String, userViewModel: UserViewModel,
         navController: NavController, context: Context, isDone: () -> Unit
     ) {
-        viewModelScope.launch {
-            Log.d("UsersViewModel", "User - $updatedExistingUser")
+        viewModelScope.launch(Dispatchers.IO) {
+            Log.d("UserViewModel", "User - $updatedExistingUser")
             val userData: MutableMap<String, Any> = mutableMapOf()
             val mediaItems: MutableMap<String, Uri> = mutableMapOf()
             userData["id"] = updatedExistingUser.id
@@ -781,9 +1025,7 @@ class UsersViewModel @Inject constructor(
                 mediaItems["mediaProfileVideo"] = profileVideoUri
             }
 
-            val userId = firebaseAuth.currentUser?.displayName ?: ""
-
-            usersViewModel.saveUserDataToFirebase(
+            userViewModel.saveUserDataToFirebase(
                 userId,
                 userData, mediaItems, context
             ) { wasSaved ->
@@ -797,13 +1039,13 @@ class UsersViewModel @Inject constructor(
 
     fun createUser(
         updatedExistingUser: User,
-        usersViewModel: UsersViewModel,
+        userViewModel: UserViewModel,
         navController: NavController,
         context: Context,
         dataStore: DataStore<Preferences>,
         isDone: () -> Unit
     ) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             val userData: MutableMap<String, Any> = mutableMapOf()
             val mediaItems: MutableMap<String, Uri> = mutableMapOf()
             userData["id"] = updatedExistingUser.id
@@ -1021,15 +1263,13 @@ class UsersViewModel @Inject constructor(
                 mediaItems["mediaProfileVideo"] = profileVideoUri
             }
 
-            val userId = firebaseAuth.currentUser?.displayName ?: ""
-
-            usersViewModel.saveUserDataToFirebase(
-                userId,
+            userViewModel.saveUserDataToFirebase(
+                getYourUserId(),
                 userData, mediaItems, context
             ) { wasSaved ->
                 if (wasSaved) {
                     isDone()
-                    viewModelScope.launch {
+                    viewModelScope.launch(Dispatchers.IO) {
                         dataStore.edit { preferences ->
                             // this needs adjustment and logic figuring
                             preferences[intPreferencesKey("currentScreen")] = 12
@@ -1049,63 +1289,48 @@ class UsersViewModel @Inject constructor(
         context: Context,
         wasSaved: (Boolean) -> Unit
     ) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             val success =
-                firebaseRepository.writeUserDataToFirebase(userId, userData, mediaItems, context)
+                firebaseRepository.writeUserDataToFirebase(
+                    userId,
+                    userData,
+                    mediaItems,
+                    context
+                )
             if (success) {
                 Log.d(
-                    "UsersViewModel",
+                    "UserViewModel",
                     "User data successfully added at the time the userData includes $userData" +
                             "and the mediaItems include $mediaItems"
                 )
-                initializeAfterSavingUserDataToFirebase(userId)
+                storeAfterSavingUserDataToFirebase(userId)
                 wasSaved(true) // Invoke the success callback
             } else {
-                Log.d("UsersViewModel", "User data not added")
+                Log.d("UserViewModel", "User data not added")
                 wasSaved(false) // Invoke the failure callback
             }
         }
     }
 
 
-    suspend fun initializeAfterSavingUserDataToFirebase(userId: String) {
-        viewModelScope.launch {
-            withContext(Dispatchers.IO) {
-                var retrievedUser = getUserDataFromRepo(userId)
-                Log.d(TAG, "Value of returnedUser before adding to ROOM DB - $retrievedUser")
-
-                if (retrievedUser != null) {
-                    try {
-                        userDao.update(retrievedUser)
-                        var returnedUser = fetchUserFromRoom(retrievedUser.id)
-                        if (returnedUser == null) {
-                            userDao.insert(retrievedUser)
-                        }
-                        Log.d(TAG, "Updated user in Room DB: $returnedUser")
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error updating user in Room DB: ${e.message}", e)
-                        try {
-                            userDao.insert(retrievedUser)
-                            Log.d(TAG, "Inserted user in Room DB: $retrievedUser")
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Error inserting user in Room DB: ${e.message}", e)
-                        }
-                    }
-                }
-
-                Log.d(TAG, "Returned user - ${getUser()}")
+    private suspend fun storeAfterSavingUserDataToFirebase(yourUserId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            var retrievedUser = getUserDataFromRepo(yourUserId)
+            Log.d(TAG, "Value of returnedUser before adding to ROOM DB - $retrievedUser")
+            if (retrievedUser != null) {
+                userRepository.upsertUser(retrievedUser)
+                loadUsers()
             }
         }
     }
 
     fun deleteImageFromFirebase(mediaIdentifier: String) {
-        viewModelScope.launch {
-            val userId = firebaseAuth.currentUser?.displayName ?: ""
-            if (userId != null) {
-                firebaseRepository.deleteMediaFromFirebase(userId, mediaIdentifier)
+        viewModelScope.launch(Dispatchers.IO) {
+            if (getYourUserId() != null) {
+                firebaseRepository.deleteMediaFromFirebase(getYourUserId(), mediaIdentifier)
 //                Log.d(TAG, "If image was in DB at the $mediaIdentifier spot, it has been deleted")
             } else {
-//                Log.d(TAG, "userId is null so deleting the image is not possible")
+//                Log.d(TAG, "yourUserId is null so deleting the image is not possible")
             }
         }
     }
@@ -1119,10 +1344,10 @@ class UsersViewModel @Inject constructor(
 //        val context = LocalContext.current
 //        val appDatabase = RoomModule.provideAppDatabase(context)
 //        val userDao = appDatabase.userDao()
-//        val userId = firebaseAuth.currentUser?.email ?: ""
+//        val yourUserId = firebaseAuth.currentUser?.email ?: ""
 //        LaunchedEffect(Unit) {
 //            viewModelScope.launch(Dispatchers.IO) {
-//                user = userDao.findById(userId)
+//                user = userDao.findById(yourUserId)
 //                val userList = userDao.getAll()
 //                for(eachUser in userList) {
 //                    Log.d(ContentValues.TAG, "Here's the data for each user - ${eachUser}")
@@ -1132,6 +1357,72 @@ class UsersViewModel @Inject constructor(
 //        }
 //        return user
 //    }
+
+    fun saveAndStoreData(
+        userId: String,
+        userData: MutableMap<String, Any>,
+        mediaItems: MutableMap<String, Uri>,
+        context: Context,
+        nextAction: () -> Unit
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            userRepository.saveUserData(userId, userData, mediaItems, context)
+            loadUsers()
+            loadYourUser()
+            nextAction()
+        }
+    }
+
+    fun saveAndStoreLocation(
+        yourUserId: String, latitude: Double, longitude: Double,
+        context: Context,
+        userViewModel: UserViewModel
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val userData: MutableMap<String, Any> = mutableMapOf()
+            val mediaItems: MutableMap<String, Uri> = mutableMapOf()
+            userData["latitude"] = latitude
+            userData["longitude"] = longitude
+            val success =
+                firebaseRepository.writeUserDataToFirebase(
+                    yourUserId,
+                    userData,
+                    mediaItems,
+                    context
+                )
+            if (success) {
+                Log.d(ContentValues.TAG, "location added!")
+                val user = userRepository.getCurrentUser()
+                user.collect { returnedUser ->
+                    updateUser(returnedUser)
+                }
+            } else {
+                Log.d(ContentValues.TAG, "Location failed to be added!")
+            }
+        }
+    }
+
+    fun calculateDistance(
+        userLatitude: Double, userLongitude: Double,
+        otherUserLatitude: Double, otherUserLongitude: Double
+    ): Double {
+        val earthRadius = 6371 // Radius of the Earth in kilometers
+
+        val dLat = Math.toRadians(otherUserLatitude - userLatitude)
+        val dLon = Math.toRadians(otherUserLongitude - userLongitude)
+
+        val a = sin(dLat / 2) * sin(dLat / 2) +
+                Math.cos(Math.toRadians(userLatitude)) * cos(Math.toRadians(otherUserLatitude)) *
+                sin(dLon / 2) * sin(dLon / 2)
+
+        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+
+        return earthRadius * c
+    }
+
+    fun updateUserField(any: Any) {
+
+    }
 
 
 }

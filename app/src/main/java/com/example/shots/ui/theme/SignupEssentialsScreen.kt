@@ -75,7 +75,7 @@ import kotlinx.coroutines.withContext
 fun SignupEssentialsScreen(
     navController: NavController,
     signupViewModel: SignupViewModel,
-    usersViewModel: UsersViewModel,
+    userViewModel: UserViewModel,
     dataStore: DataStore<Preferences>
 ) {
     val firebaseAuth = FirebaseModule.provideFirebaseAuth()
@@ -91,7 +91,7 @@ fun SignupEssentialsScreen(
     var isGoingBack by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
 
-    val user by remember { mutableStateOf(usersViewModel.getUser()) }
+    val user by remember { mutableStateOf(userViewModel.getUser()) }
 
     val backCallback = object : OnBackPressedCallback(true) {
         override fun handleOnBackPressed() {
@@ -153,7 +153,7 @@ fun SignupEssentialsScreen(
                                 userData["pets"] = "UNKNOWN"
 
                                 val userId = user?.id ?: ""
-                                usersViewModel.saveUserDataToFirebase(
+                                userViewModel.saveUserDataToFirebase(
                                     userId, userData,
                                     mediaItems, context
                                 ) {
@@ -891,7 +891,7 @@ fun SignupEssentialsScreen(
                                                 }
                                             )
                                     if (updatedExistingUser != null) {
-                                        usersViewModel.userDao.update(updatedExistingUser)
+//                                        userViewModel.userDao.update(updatedExistingUser)
                                     }
 
                                     val userId = user?.id ?: ""
@@ -942,7 +942,7 @@ fun SignupEssentialsScreen(
                                             Pets.AMPHIBIAN -> "AMPHIBIAN"
                                             else -> "UNKNOWN"
                                         }
-                                        usersViewModel.saveUserDataToFirebase(
+                                        userViewModel.saveUserDataToFirebase(
                                             userId, userData,
                                             mediaItems, context
                                         ) {

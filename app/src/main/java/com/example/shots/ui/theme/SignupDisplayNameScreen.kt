@@ -52,7 +52,7 @@ import kotlinx.coroutines.withContext
 fun SignupDisplayNameScreen(
     navController: NavController,
     signupViewModel: SignupViewModel,
-    usersViewModel: UsersViewModel,
+    userViewModel: UserViewModel,
     dataStore: DataStore<Preferences>
 ) {
     val firebaseAuth = FirebaseModule.provideFirebaseAuth()
@@ -68,7 +68,7 @@ fun SignupDisplayNameScreen(
         )
     }
 
-    var user by remember { mutableStateOf(usersViewModel.getUser()) }
+    var user by remember { mutableStateOf(userViewModel.getUser()) }
 
     val backCallback = object : OnBackPressedCallback(true) {
         override fun handleOnBackPressed() {
@@ -123,7 +123,8 @@ fun SignupDisplayNameScreen(
                                 "Finally, the user on age screen is - ${updatedExistingUser}"
                             )
                             if (updatedExistingUser != null) {
-                                usersViewModel.userDao.update(updatedExistingUser)
+//                                userViewModel.saveUserDataToFirebase()
+//                                userViewModel.userDao.update(updatedExistingUser)
                             }
                         }
                     }
@@ -207,14 +208,14 @@ fun SignupDisplayNameScreen(
                                     TAG, "DisplayName Screen - User Values - " +
                                             "${signupViewModel.getSignUpUser()}"
                                 )
-                                signupViewModel.updateScreenStatus(Screen.DISPLAY_NAME)
+//                                signupViewModel.updateScreenStatus(Screen.DISPLAY_NAME)
                                 scope.launch {
                                     withContext(Dispatchers.IO) {
-                                        val userId = user?.id ?: ""
+                                        var userId = user.id ?: ""
                                         val userData: MutableMap<String, Any> = mutableMapOf()
                                         val mediaItems: MutableMap<String, Uri> = mutableMapOf()
                                         userData["displayName"] = displayNameState
-                                        usersViewModel.saveUserDataToFirebase(
+                                        userViewModel.saveUserDataToFirebase(
                                             userId ?: "", userData,
                                             mediaItems, context
                                         ) {}

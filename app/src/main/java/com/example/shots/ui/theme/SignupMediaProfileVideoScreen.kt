@@ -68,7 +68,7 @@ import kotlinx.coroutines.launch
 fun SignupMediaProfileVideoScreen(
     navController: NavController,
     signupViewModel: SignupViewModel,
-    usersViewModel: UsersViewModel,
+    userViewModel: UserViewModel,
     dataStore: DataStore<Preferences>
 ) {
     val context = LocalContext.current
@@ -80,13 +80,11 @@ fun SignupMediaProfileVideoScreen(
     val firebaseStorage = FirebaseModule.provideStorage()
     val firebaseRepository =
         FirebaseModule.provideFirebaseRepository(firebaseAuth, firestore, firebaseStorage)
-    val editProfileViewModel =
-        ViewModelModule.provideEditProfileViewModel(firebaseRepository, firebaseAuth)
     var isEditingProfile by rememberSaveable { mutableStateOf(false) }
     var mediaProfileVideoWasClicked by remember { mutableStateOf(false) }
     var isEditingMediaProfileVideo by rememberSaveable { mutableStateOf(false) }
 
-    val user by remember { mutableStateOf(usersViewModel.getUser()) }
+    val user by remember { mutableStateOf(userViewModel.getUser()) }
 
     val userData: MutableMap<String, Any> = mutableMapOf()
     val mediaItems: MutableMap<String, Uri> = mutableMapOf()
@@ -311,7 +309,7 @@ fun SignupMediaProfileVideoScreen(
                             mediaItems["mediaProfileVideo"] = mediaProfileVideoState.toUri()
                             mediaProfileVideoWasClicked = false
                             isEditingMediaProfileVideo = true
-                            usersViewModel.saveUserDataToFirebase(
+                            userViewModel.saveUserDataToFirebase(
                                 user?.id ?: "",
                                 userData, mediaItems, context
                             ) { wasSaved ->

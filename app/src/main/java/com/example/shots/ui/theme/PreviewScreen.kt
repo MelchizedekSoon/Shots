@@ -1,7 +1,6 @@
 package com.example.shots.ui.theme
 
 import android.content.ActivityNotFoundException
-import android.content.ContentValues.TAG
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
@@ -9,7 +8,6 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -46,21 +44,19 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -68,12 +64,8 @@ import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
-import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
-import com.example.shots.FirebaseModule
 import com.example.shots.ProfileMediaDisplay
 import com.example.shots.R
-import com.example.shots.RoomModule
-import com.example.shots.ViewModelModule
 import com.example.shots.data.Distance
 import com.example.shots.data.Drinking
 import com.example.shots.data.Education
@@ -85,7 +77,6 @@ import com.example.shots.data.Marijuana
 import com.example.shots.data.Pets
 import com.example.shots.data.Religion
 import com.example.shots.data.Smoking
-import com.example.shots.data.User
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -93,35 +84,28 @@ import kotlinx.coroutines.withContext
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(
-    ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class,
-    ExperimentalGlideComposeApi::class
+    ExperimentalMaterial3Api::class
 )
 @Composable
 fun PreviewScreen(
     navController: NavController,
-    usersViewModel: UsersViewModel,
+    userViewModel: UserViewModel,
     locationViewModel: LocationViewModel
 ) {
-    val firebaseAuth = FirebaseModule.provideFirebaseAuth()
-    val firestore = FirebaseModule.provideFirestore()
-    val firebaseStorage = FirebaseModule.provideStorage()
-    val firebaseRepository =
-        FirebaseModule.provideFirebaseRepository(firebaseAuth, firestore, firebaseStorage)
-    val editProfileViewModel =
-        ViewModelModule.provideEditProfileViewModel(firebaseRepository, firebaseAuth)
-    val appDatabase = RoomModule.provideAppDatabase(LocalContext.current)
-    val userDao = RoomModule.provideUserDao(appDatabase)
-    val bookmarkDao = RoomModule.provideBookmarkDao(appDatabase)
+    userViewModel.loadYourUser()
 
-    var yourUser by remember { mutableStateOf<User?>(null) }
-    var user by remember { mutableStateOf<User?>(null) }
-    var userId by remember { mutableStateOf(firebaseAuth.currentUser?.displayName) }
-    val yourLatitude = yourUser?.latitude ?: 0.0
-    val yourLongitude = yourUser?.longitude ?: 0.0
+    val user by userViewModel.user.collectAsState()
+
+    var bookmarkWasClicked by remember { mutableStateOf(false) }
+    var shotWasClicked by remember { mutableStateOf(false) }
+    var likeWasClicked by remember { mutableStateOf(false) }
+    var reportWasClicked by remember { mutableStateOf(false) }
+    var blockWasClicked by remember { mutableStateOf(false) }
+    var copyUserNameWasClicked by remember { mutableStateOf(false) }
+
     val sheetState = rememberModalBottomSheetState()
     var showBottomSheet by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    var isShowingBookmarkDialog by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     var snackbarMessage by remember {
         mutableStateOf("")
@@ -131,7 +115,6 @@ fun PreviewScreen(
             snackbarHostState.showSnackbar("Video duration exceeds the maximum allowed duration")
         }
     }
-
 
     val backCallback = remember {
         object : OnBackPressedCallback(true) {
@@ -149,47 +132,6 @@ fun PreviewScreen(
             backCallback.remove()
         }
     }
-
-    var isLiked by rememberSaveable {
-        mutableStateOf(false)
-    }
-
-    var currentUser by remember { mutableStateOf<User?>(null) }
-    var isBookmarked by remember {
-        mutableStateOf(true)
-    }
-    var hasBeenClicked by remember {
-        mutableStateOf(false)
-    }
-    var hasConfirmedRemoval by remember {
-        mutableStateOf(false)
-    }
-
-    LaunchedEffect(Unit) {
-        scope.launch {
-            withContext(Dispatchers.IO) {
-                user = userId.let { userDao.findById(it ?: "") }
-                yourUser = usersViewModel.getUser()
-                if (user != null) {
-                    try {
-                        val bookmarks =
-                            bookmarkDao.findById(
-                                firebaseAuth.currentUser?.displayName ?: ""
-                            ).bookmarks
-                        Log.d(TAG, "List of bookmarks - ${bookmarks} - userId is $userId")
-                        isBookmarked = bookmarks.contains(userId)
-                        //                    isLiked = yourUser?.sentLikes?.contains(user!!.id) == true
-//                        isBookmarked = bookmarks?.contains(user!!.id) == true
-                    } catch (npe: NullPointerException) {
-                        Log.d(TAG, "No bookmarks yet")
-                    }
-                }
-                Log.d(TAG, "Welcome to the page of ${user?.userName}")
-                Log.d(TAG, "You're logged in as ${yourUser?.userName}")
-            }
-        }
-    }
-
 
     Scaffold(modifier = Modifier.fillMaxSize(), topBar = {
         TopAppBar(title = {
@@ -218,10 +160,15 @@ fun PreviewScreen(
 
     }, snackbarHost = {
         SnackbarHost(hostState = snackbarHostState) {
+            val padding = if (showBottomSheet) {
+                224.dp
+            } else {
+                32.dp
+            }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(0.dp, 0.dp, 0.dp, 32.dp)
+                    .padding(0.dp, 0.dp, 0.dp, padding)
             ) {
                 Button(modifier = Modifier.align(Alignment.BottomCenter), onClick = {
                     scope.launch {
@@ -230,15 +177,13 @@ fun PreviewScreen(
                         )
                     }
                 }) {
-                    Text(text = "snackbarMessage")
+                    Text(text = snackbarMessage)
                 }
             }
 
         }
     }) {
         Modifier.padding(it)
-
-        val context = LocalContext.current
 //            val cards: List<User> = listOf(
 //                User(
 //                    "0",
@@ -275,6 +220,7 @@ fun PreviewScreen(
 //                // Add more users as needed
 //            )
 //            val user = cards[0]
+
         val scrollState: LazyListState = rememberLazyListState()
         LazyColumn(
             modifier = Modifier.padding(16.dp),
@@ -432,53 +378,9 @@ fun PreviewScreen(
                                     }
                                 }
 
-                                if (!user?.link.isNullOrBlank()) {
-                                    Row(
-                                        horizontalArrangement = Arrangement.Center,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            painterResource(id = R.drawable.link_24px),
-                                            "Link Icon",
-                                            tint = Color(0xFF808080)
-                                        )
-                                        Spacer(Modifier.width(2.dp))
-                                        val openUrl = rememberLauncherForActivityResult(
-                                            ActivityResultContracts.StartActivityForResult()
-                                        ) { }
-                                        val link = user?.link ?: ""
-                                        Text(text = link,
-                                            color = Color(0xFF007FFF),
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            softWrap = false,
-                                            modifier = Modifier // Occupy remaining space in the row
-                                                .clickable {
-                                                    try {
-                                                        val intent = Intent(
-                                                            Intent.ACTION_VIEW,
-                                                            Uri.parse(user?.link ?: "")
-                                                        )
-                                                        openUrl.launch(intent)
-                                                    } catch (e: ActivityNotFoundException) {
-                                                        scope.launch {
-                                                            withContext(Dispatchers.IO) {
-                                                                snackbarMessage =
-                                                                    "Link failed to open."
-                                                                snackbarHostState.showSnackbar(
-                                                                    snackbarMessage
-                                                                )
-                                                            }
-                                                        }
-                                                    }
-                                                })
-                                        // Other composables or icons can be added here
-                                    }
-                                }
-
                                 Spacer(Modifier.height(2.dp))
 
-                                val acceptShotsValue = when(user?.acceptShots) {
+                                val acceptShotsValue = when (user?.acceptShots) {
                                     Distance.TEN -> "within 10 miles"
                                     Distance.TWENTY -> "within 20 miles"
                                     Distance.THIRTY -> "within 30 miles"
@@ -517,7 +419,7 @@ fun PreviewScreen(
 
                                 Spacer(Modifier.height(2.dp))
 
-                                //Location or How far away
+                                //Location or how far away
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.Center,
@@ -532,7 +434,10 @@ fun PreviewScreen(
                                     val thisLatitude = user?.latitude ?: 0.0
                                     val thisLongitude = user?.longitude ?: 0.0
                                     val distance = locationViewModel.calculateDistance(
-                                        yourLatitude, yourLongitude, thisLatitude, thisLongitude
+                                        user?.latitude ?: 0.0,
+                                        user?.longitude ?: 0.0,
+                                        thisLatitude,
+                                        thisLongitude
                                     )
                                     Text(
                                         text = "${distance.toInt()} miles away",
@@ -547,156 +452,32 @@ fun PreviewScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.Center
                             ) {
+
                                 Column(
                                     modifier = Modifier.weight(1f),
                                     verticalArrangement = Arrangement.Center,
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
-                                    if (!isLiked) {
-                                        Icon(painterResource(id = R.drawable.heart_alt_svgrepo_com),
-                                            "Like Button",
-                                            tint = Color.Red,
-                                            modifier = Modifier
-                                                .height(48.dp)
-                                                .width(48.dp)
-                                                .clickable {
-                                                    isLiked = !isLiked
-                                                })
-                                        Text(text = "Like", fontSize = 16.sp)
-                                    } else {
-                                        Icon(painterResource(id = R.drawable.heart_svgrepo_com_2),
-                                            "Like Button",
-                                            tint = Color.Red,
-                                            modifier = Modifier
-                                                .height(48.dp)
-                                                .width(48.dp)
-                                                .clickable {
-                                                    isLiked = !isLiked
-                                                })
-                                        Text(text = "Like", fontSize = 16.sp)
+                                    Icon(painterResource(id = R.drawable.heart_alt_svgrepo_com),
+                                        "Like Button",
+                                        tint = Color.Red,
+                                        modifier = Modifier
+                                            .height(48.dp)
+                                            .width(48.dp)
+                                            .clickable {
+                                                likeWasClicked = true
+                                            })
+                                    Text(text = "Like", fontSize = 16.sp)
+                                }
+
+                                LaunchedEffect(likeWasClicked) {
+                                    if (likeWasClicked) {
+                                        snackbarMessage = "Use this to send a like."
+                                        snackbarHostState.showSnackbar(snackbarMessage)
+                                        likeWasClicked = false
                                     }
                                 }
-                                LaunchedEffect(isLiked) {
-                                    scope.launch(Dispatchers.IO) {
-                                        val userDataForYou = mutableMapOf<String, Any>()
-                                        val userDataForOtherUser = mutableMapOf<String, Any>()
 
-                                        /** since this will be empty, mediaItems (below)
-                                         * as it won't get mixed up anyway
-                                         */
-
-                                        val mediaItems: MutableMap<String, Uri> = mutableMapOf()
-//                                        val sentLikes = yourUser?.sentLikes
-//                                        Log.d(ContentValues.TAG, "$sentLikes")
-//                                        var sentLikesList = sentLikes?.split(" ")
-//                                        Log.d(ContentValues.TAG, "$sentLikesList")
-//                                        val otherUserReceivedLikes = user?.receivedLikes
-//                                        var otherUserReceivedLikesList =
-//                                            otherUserReceivedLikes?.split(" ")
-
-//                                        if (!isLiked) {
-////                                            sentLikesList = sentLikesList?.toMutableList()
-//                                            if (sentLikesList?.contains(user?.id) == true) {
-//                                                sentLikesList.remove(user?.id)
-//                                            }
-//                                            otherUserReceivedLikesList =
-//                                                otherUserReceivedLikesList?.toMutableList()
-//                                            if (otherUserReceivedLikesList?.contains(yourUser?.id) == true) {
-//                                                otherUserReceivedLikesList.remove(yourUser?.id)
-//                                            }
-//                                        } else {
-//                                            sentLikesList = sentLikesList?.toMutableList()
-//                                            if (!sentLikesList?.contains(user?.id)!!) {
-//                                                sentLikesList.add(user?.id ?: "")
-//                                            }
-//                                            otherUserReceivedLikesList =
-//                                                otherUserReceivedLikesList?.toMutableList()
-//                                            if (yourUser != null && !otherUserReceivedLikesList?.contains(
-//                                                    yourUser?.id
-//                                                )!!
-//                                            ) {
-//                                                otherUserReceivedLikesList.add(
-//                                                    yourUser?.id ?: ""
-//                                                )
-//                                            }
-//                                        }
-
-                                        /** storing the like you gave to someone else
-                                         * as a String below
-                                         */
-//                                        val sentLikesAsString =
-//                                            sentLikesList?.joinToString(" ")?.trim()
-//                                        sentLikesList = null
-//                                        if (sentLikesAsString != null) {
-//                                            userDataForYou["sentLikes"] = sentLikesAsString
-//                                        }
-
-                                        // saving the sent like to firestore under your user data
-                                        if (userId != null) {
-                                            usersViewModel.saveUserDataToFirebase(
-                                                userId!!, userDataForYou, mediaItems, context
-                                            ) { wasSaved ->
-                                                Log.d("PreviewScreen", "Was saved = $wasSaved")
-                                            }
-                                        }
-
-                                        /** retrieving an instance of user (you) and getting
-                                         * the data related from Firestore remotely and
-                                         * then taking the udpated sent likes data
-                                         * and adding that to your local Room DB
-                                         */
-//                                        if (userId != null) {
-//                                            val returnedUser =
-//                                                usersViewModel.getUserDataFromRepo(userId)
-//                                            yourUser =
-//                                                yourUser?.copy(sentLikes = returnedUser?.sentLikes)
-//                                            if (yourUser != null) {
-//                                                userDao.insert(yourUser!!)
-//                                            }
-//                                        }
-
-                                        /** storing the received like to the user you sent
-                                         * it to
-                                         */
-//                                        val otherUserReceivedLikesAsString =
-//                                            otherUserReceivedLikesList?.joinToString(" ")?.trim()
-//                                        otherUserReceivedLikesList = null
-//                                        if (otherUserReceivedLikesAsString != null) {
-//                                            userDataForOtherUser["receivedLikes"] =
-//                                                otherUserReceivedLikesAsString
-//                                        }
-
-
-                                        /** saving the received like to firestore within
-                                         * the other user's data
-                                         */
-                                        val otherUserId = user?.id ?: ""
-                                        usersViewModel.saveUserDataToFirebase(
-                                            otherUserId, userDataForOtherUser, mediaItems, context
-                                        ) { wasSaved ->
-                                            Log.d("PreviewScreen", "wasSaved = $wasSaved")
-                                        }
-
-
-                                        /** retrieving an instance of user (you) and getting
-                                         * the data related from Firestore remotely and
-                                         * then taking the udpated sent likes data
-                                         * and adding that to your local Room DB
-                                         */
-//                                        if (user?.id != null) {
-//                                            //user is the otherUser in this instance
-//                                            val otherReturnedUser =
-//                                                usersViewModel.getUserDataFromRepo(user?.id!!)
-//                                            user =
-//                                                user?.copy(receivedLikes = otherReturnedUser?.receivedLikes)
-//                                            if (user != null) {
-//                                                userDao.insert(user!!)
-//                                            }
-//                                        }
-
-
-                                    }
-                                }
                                 Column(
                                     modifier = Modifier.weight(1f),
                                     verticalArrangement = Arrangement.Center,
@@ -712,23 +493,32 @@ fun PreviewScreen(
                                         Icon(
                                             painterResource(id = R.drawable.sports_basketball_24px),
                                             "Shots Button",
-                                            modifier = Modifier.align(Alignment.Center)
+                                            modifier = Modifier
+                                                .align(Alignment.Center)
+                                                .clickable {
+                                                    shotWasClicked = true
+                                                }
                                         )
                                     }
                                     Text(text = "Shoot", fontSize = 16.sp)
                                 }
+
+                                LaunchedEffect(shotWasClicked) {
+                                    if (shotWasClicked) {
+                                        snackbarMessage = "Use this to send a shot."
+                                        snackbarHostState.showSnackbar(snackbarMessage)
+                                        shotWasClicked = false
+                                    }
+                                }
+
                                 Column(
                                     modifier = Modifier.weight(1f),
                                     verticalArrangement = Arrangement.Center,
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
-                                    val painter = if (!isBookmarked) {
+
+                                    val painter =
                                         painterResource(id = R.drawable.bookmark_24px)
-                                    } else {
-                                        painterResource(id = R.drawable.bookmark_24px)
-                                        //This is just the preview screen
-//                                        painterResource(id = R.drawable.baseline_bookmark_24)
-                                    }
 
                                     Icon(painter,
                                         "Bookmark Button",
@@ -737,374 +527,24 @@ fun PreviewScreen(
                                             .height(48.dp)
                                             .width(48.dp)
                                             .clickable {
-                                                //Add a bookmark snackbar
+                                                bookmarkWasClicked = true
                                             })
                                     Text(text = "Bookmark", fontSize = 16.sp)
-
-//                                    if (!isBookmarked && hasBeenClicked) {
-//                                        Log.d(TAG, "Bookmark is now - $isBookmarked")
-//                                        val isConfirmed =
-//                                            DialogUtils.bookmarkRemovalDialog { confirmed ->
-//                                                // Callback function called on dialog dismissal
-//                                                isShowingBookmarkDialog = false
-//                                                // Use the `confirmed` value if needed
-//                                                Log.d(
-//                                                    TAG,
-//                                                    "Dialog dismissed, confirmed: $confirmed"
-//                                                )
-//                                            }
-//                                        LaunchedEffect(isConfirmed) {
-//                                            if (isConfirmed) {
-//                                                scope.launch {
-//                                                    withContext(Dispatchers.IO) {
-//                                                        val yourUserId =
-//                                                            firebaseAuth.currentUser?.uid ?: ""
-//                                                        Log.d(TAG, "theirUserId = $userId")
-//                                                        val isRemovedFromDB =
-//                                                            bookmarkViewModel.removeBookmarkFromFirebase(
-//                                                                userId ?: ""
-//                                                            )
-//                                                        if (isRemovedFromDB) {
-//                                                            Log.d(
-//                                                                TAG,
-//                                                                "Inside isRemovedFromDB - $isConfirmed"
-//                                                            )
-//                                                            var bookmark =
-//                                                                bookmarkDao.findById(yourUserId)
-//                                                            val bookmarkList =
-//                                                                bookmarkViewModel.getBookmarksFromFirebase(
-//                                                                    yourUserId
-//                                                                )
-//                                                            bookmark =
-//                                                                bookmark.copy(bookmarks = bookmarkList.toMutableList())
-//                                                            bookmarkDao.insert(bookmark)
-//                                                            Log.d(
-//                                                                TAG,
-//                                                                "Bookmarks - ${bookmark.bookmarks}"
-//                                                            )
-//                                                        }
-//
-//                                                    }
-//                                                }
-//                                                hasConfirmedRemoval = true
-//                                            }
-//                                        }
-//                                        hasBeenClicked = false
-//                                    } else {
-//                                        LaunchedEffect(isBookmarked) {
-//                                            if (isBookmarked) {
-//                                                scope.launch {
-//                                                    withContext(Dispatchers.IO) {
-//                                                        val bookmarkData =
-//                                                            mutableMapOf<String, Any>()
-//                                                        val yourUserId =
-//                                                            firebaseAuth.currentUser?.uid ?: ""
-//                                                        var bookmarkList =
-//                                                            bookmarkViewModel.getBookmarksFromFirebase(
-//                                                                yourUserId
-//                                                            )
-//                                                        if (!bookmarkList.contains(userId)) {
-//                                                            bookmarkData["bookmark-$userId"] =
-//                                                                bookmarkViewModel.saveBookmarkToFirebase(
-//                                                                    yourUserId,
-//                                                                    bookmarkData
-//                                                                )
-//                                                            bookmarkList =
-//                                                                bookmarkViewModel.getBookmarksFromFirebase(
-//                                                                    yourUserId
-//                                                                )
-//                                                            var bookmark =
-//                                                                bookmarkDao.findById(yourUserId)
-//                                                            bookmark =
-//                                                                bookmark.copy(bookmarks = bookmarkList.toMutableList())
-//                                                            bookmarkDao.insert(bookmark)
-//                                                        }
-//                                                    }
-//                                                }
-//                                            }
-//                                        }
-//                                    }
-
-
                                 }
 
+                                LaunchedEffect(bookmarkWasClicked) {
+                                    if (bookmarkWasClicked) {
+                                        snackbarMessage = "Use this to bookmark a profile."
+                                        snackbarHostState.showSnackbar(snackbarMessage)
+                                        bookmarkWasClicked = false
+                                    }
+                                }
 
                             }
                         }
                     }
                 }
             }
-//            item() {
-//                Card(
-//                    modifier = Modifier
-//                        .shadow(16.dp),
-//                    colors = CardColors(
-//                        containerColor = Color.White,
-//                        contentColor = Color.Black, disabledContentColor = Color.Red,
-//                        disabledContainerColor = Color.Red
-//                    )
-//                ) {
-//                    Box() {
-//                        Column(
-//                            modifier = Modifier
-//                                .fillMaxSize()
-//                                .padding(16.dp)
-//                        ) {
-//                            Column(
-//                                modifier = Modifier
-//                                    .fillMaxSize(),
-////                                verticalArrangement = Arrangement.spacedBy(8.dp), // Adjust the spacing here
-////                                horizontalAlignment = Alignment.CenterHorizontally
-//                            ) {
-//                                Box(modifier = Modifier.fillMaxWidth()) {
-//                                    Column() {
-//                                        //Display Name
-//                                        Text(
-//                                            text = retrievedUser.value?.displayName ?: "",
-////                                    fontSize = 28.sp,
-//                                            fontWeight = FontWeight.Bold
-//                                        )
-//                                        //Username
-//                                        val userName = retrievedUser.value?.userName ?: ""
-//                                        if (userName != "") {
-//                                            Text(
-//                                                text = userName,
-////                                        fontSize = 16.sp
-//                                            )
-//                                        }
-//                                    }
-//                                }
-//
-////                                Spacer(Modifier.height(8.dp))
-//
-//                                //Links
-//                                Box(modifier = Modifier.fillMaxWidth()) {
-//                                    Row() {
-//                                        Icon(
-//                                            painter = painterResource(R.drawable.link_svgrepo_com),
-//                                            "Link Icon", tint = Color(0xFFFF6F00)
-//                                        )
-//                                        Spacer(modifier = Modifier.width(4.dp))
-//                                        val openUrl = rememberLauncherForActivityResult(
-//                                            ActivityResultContracts.StartActivityForResult()
-//                                        ) { }
-//                                        Text(
-//                                            text = retrievedUser.value?.link ?: "",
-//                                            maxLines = 1, // Set the maximum number of lines to 1
-//                                            overflow = TextOverflow.Ellipsis, // Add an ellipsis (...) if the text overflows
-//                                            modifier = Modifier.clickable {
-//                                                val intent = Intent(
-//                                                    Intent.ACTION_VIEW,
-//                                                    Uri.parse(retrievedUser.value?.link)
-//                                                )
-//                                                openUrl.launch(intent)
-//                                            }
-//                                        )
-//                                    }
-//                                }
-//
-//
-//                                //Location or How far away
-//                                Box(
-//                                    modifier = Modifier.fillMaxWidth(),
-////                                    contentAlignment = Alignment.Center
-//                                ) {
-//                                    Row() {
-//                                        Icon(
-//                                            painter = painterResource(R.drawable.location_marker_svgrepo_com),
-//                                            "Location Icon", tint = Color(0xFFFF6F00)
-//                                        )
-//                                        Row(
-////                                            verticalAlignment = Alignment.CenterVertically // Center the items vertically within the Row
-//                                        ) {
-//                                            Spacer(modifier = Modifier.width(4.dp))
-//                                            Text(text = "45 miles away")
-//                                        }
-//                                    }
-//                                }
-////                                Spacer(Modifier.height(8.dp))
-//                                Box(
-//                                    modifier = Modifier.fillMaxWidth(),
-////                                    contentAlignment = Alignment.Center
-//                                ) {
-//                                    Row() {
-//                                        Row(
-////                                            verticalAlignment = Alignment.CenterVertically // Center the items vertically within the Row
-//                                        ) {
-//                                            Spacer(modifier = Modifier.width(4.dp))
-//                                            Text(
-//                                                text = "Acceptings shots from:",
-//                                                fontWeight = FontWeight.Bold,
-////                                                fontSize = 20.sp
-//                                            )
-//                                        }
-//                                    }
-//                                }
-//
-//
-//                                Box(
-//                                    modifier = Modifier.fillMaxWidth(),
-////                                    contentAlignment = Alignment.Center
-//                                ) {
-//                                    Row() {
-//                                        Row(
-////                                            verticalAlignment = Alignment.CenterVertically // Center the items vertically within the Row
-//                                        ) {
-//                                            // Currently accepting shots within:
-//                                            Spacer(modifier = Modifier.width(4.dp))
-//                                            Text(text = "Men within 50 miles")
-//                                        }
-//                                    }
-//                                }
-//                            }
-//
-//
-//                            Spacer(Modifier.height(16.dp))
-//                            Row(
-//                                modifier = Modifier.fillMaxWidth(),
-//                                verticalAlignment = Alignment.CenterVertically,
-//                                horizontalArrangement = Arrangement.Center
-//                            ) {
-//                                Column(
-//                                    modifier = Modifier.weight(1f),
-//                                    verticalArrangement = Arrangement.Center,
-//                                    horizontalAlignment = Alignment.CenterHorizontally
-//                                ) {
-//                                    Icon(
-//                                        painterResource(id = R.drawable.favorite_24px),
-//                                        "Like Button",
-//                                        tint = Color.Red
-//                                    )
-//                                    Text(text = "Like", fontSize = 16.sp)
-//                                }
-//                                Column(
-//                                    modifier = Modifier.weight(1f),
-//                                    verticalArrangement = Arrangement.Center,
-//                                    horizontalAlignment = Alignment.CenterHorizontally
-//                                ) {
-//                                    Box() {
-//                                        Icon(
-//                                            painterResource(id = R.drawable.circle),
-//                                            "Orange Circle of Ball",
-//                                            tint = Color(0xFFFFA500),
-//                                            modifier = Modifier.align(Alignment.Center)
-//                                        )
-//                                        Icon(
-//                                            painterResource(id = R.drawable.sports_basketball_24px),
-//                                            "Shots Button",
-//                                            modifier = Modifier.align(Alignment.Center)
-//                                        )
-//                                    }
-//                                    Text(text = "Shoot", fontSize = 16.sp)
-//                                }
-//                                Column(
-//                                    modifier = Modifier.weight(1f),
-//                                    verticalArrangement = Arrangement.Center,
-//                                    horizontalAlignment = Alignment.CenterHorizontally
-//                                ) {
-//                                    Icon(
-//                                        painterResource(id = R.drawable.bookmark_24px),
-//                                        "Bookmark Button",
-//                                        tint = Color.Blue,
-//                                    )
-//                                    Text(text = "Bookmark", fontSize = 16.sp)
-//                                }
-//                            }
-//                        }
-//                    }
-//                }
-//            }
-//                item() {
-//                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-//                        Card(
-//                            modifier = Modifier
-//                                .height(90.dp)
-//                                .shadow(16.dp)
-//                                .weight(1f),
-//                            colors = CardColors(
-//                                containerColor = Color.White,
-//                                contentColor = Color.Black, disabledContentColor = Color.Red,
-//                                disabledContainerColor = Color.Red
-//                            )
-//                        ) {
-//                            Box(modifier = Modifier.fillMaxSize()) {
-//                                Column(
-//                                    modifier = Modifier.fillMaxSize(),
-//                                    verticalArrangement = Arrangement.Center,
-//                                    horizontalAlignment = Alignment.CenterHorizontally
-//                                ) {
-//                                    Icon(
-//                                        painterResource(id = R.drawable.favorite_24px),
-//                                        "Like Button",
-//                                        tint = Color.Red
-//                                    )
-//                                    Text(text = "Like", fontSize = 16.sp)
-//                                }
-//                            }
-//                        }
-//                        Card(
-//                            modifier = Modifier
-//                                .height(90.dp)
-//                                .shadow(16.dp)
-//                                .weight(1f),
-//                            colors = CardColors(
-//                                containerColor = Color.White,
-//                                contentColor = Color.Black, disabledContentColor = Color.Red,
-//                                disabledContainerColor = Color.Red
-//                            )
-//                        ) {
-//                            Box(modifier = Modifier.fillMaxSize()) {
-//                                Column(
-//                                    modifier = Modifier.fillMaxSize(),
-//                                    verticalArrangement = Arrangement.Center,
-//                                    horizontalAlignment = Alignment.CenterHorizontally
-//                                ) {
-//                                    Box() {
-//                                        Icon(
-//                                            painterResource(id = R.drawable.circle),
-//                                            "Orange Circle of Ball",
-//                                            tint = Color(0xFFFFA500),
-//                                            modifier = Modifier.align(Alignment.Center)
-//                                        )
-//                                        Icon(
-//                                            painterResource(id = R.drawable.sports_basketball_24px),
-//                                            "Shots Button",
-//                                            modifier = Modifier.align(Alignment.Center)
-//                                        )
-//                                    }
-//                                    Text(text = "Shoot", fontSize = 16.sp)
-//                                }
-//                            }
-//                        }
-//                        Card(
-//                            modifier = Modifier
-//                                .height(90.dp)
-//                                .shadow(16.dp)
-//                                .weight(1f),
-//                            colors = CardColors(
-//                                containerColor = Color.White,
-//                                contentColor = Color.Black, disabledContentColor = Color.Red,
-//                                disabledContainerColor = Color.Red
-//                            )
-//                        ) {
-//                            Box(modifier = Modifier.fillMaxSize()) {
-//                                Column(
-//                                    modifier = Modifier.fillMaxSize(),
-//                                    verticalArrangement = Arrangement.Center,
-//                                    horizontalAlignment = Alignment.CenterHorizontally
-//                                ) {
-//                                    Icon(
-//                                        painterResource(id = R.drawable.bookmark_24px),
-//                                        "Bookmark Button",
-//                                        tint = Color.Blue,
-//                                    )
-//                                    Text(text = "Bookmark", fontSize = 16.sp)
-//                                }
-//                            }
-//                        }
-//                    }
-//                }
-
 
             //mediaOne
             if (!user?.mediaOne.isNullOrBlank()) {
@@ -1522,7 +962,7 @@ fun PreviewScreen(
                                         val religion = when (user?.religion) {
                                             Religion.CHRISTIANITY -> "Christianity"
                                             Religion.ISLAM -> "Islam"
-                                            Religion.HINDUISM -> "Hindiusm"
+                                            Religion.HINDUISM -> "Hinduism"
                                             Religion.BUDDHISM -> "Buddhism"
                                             Religion.SIKHISM -> "Sikhism"
                                             Religion.JUDAISM -> "Judaism"
@@ -1843,13 +1283,26 @@ fun PreviewScreen(
                 Column(
                     modifier = Modifier.padding(start = 16.dp)
                 ) {
-                    Text(text = "Report", color = Color.Black)
-                    Spacer(Modifier.height(24.dp))
-                    Text(text = "Block", color = Color.Black)
+                    Row(modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            reportWasClicked = true
+                        }) {
+                        Text(text = "Report", color = Color.Black)
+                    }
                     Spacer(Modifier.height(24.dp))
                     Row(modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
+                            blockWasClicked = true
+                        }) {
+                        Text(text = "Block", color = Color.Black)
+                    }
+                    Spacer(Modifier.height(24.dp))
+                    Row(modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            copyUserNameWasClicked = true
                         }) {
                         Text(text = "Copy username", color = Color.Black)
                     }
@@ -1858,293 +1311,45 @@ fun PreviewScreen(
 //                    Text(text = "Share this profile", color = Color.Black)
                     Spacer(Modifier.height(72.dp))
                 }
+                LaunchedEffect(reportWasClicked) {
+                    if (reportWasClicked) {
+                        snackbarMessage = "Use this to report a profile."
+                        snackbarHostState.showSnackbar(snackbarMessage)
+                        reportWasClicked = false
+                        Log.d("PreviewScreen", "reportWasClicked = $reportWasClicked")
+                    }
+                }
+                LaunchedEffect(blockWasClicked) {
+                    if (blockWasClicked) {
+                        snackbarMessage = "Use this to block a profile."
+                        snackbarHostState.showSnackbar(snackbarMessage)
+                        blockWasClicked = false
+                    }
+                }
+                LaunchedEffect(copyUserNameWasClicked) {
+                    if (copyUserNameWasClicked) {
+//                        val clipboardManager =
+//                            context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+//                        val clipData = ClipData.newPlainText("Username", user?.userName)
+//                        clipboardManager.setPrimaryClip(clipData)
+                        snackbarMessage =
+                            "Use this to copy a user's username."
+                        snackbarHostState.showSnackbar(snackbarMessage)
+                        copyUserNameWasClicked = false
+                        // Show a toast or snackbar to indicate that the username has been copied
+//            Toast.makeText(
+//                context,
+//                "Username ${user?.userName} copied to clipboard",
+//                Toast.LENGTH_SHORT
+//            ).show()
+                    }
+                }
             }
         }
 
     }
 }
 
-//fun hasDetails(retrievedUser: MutableState<User?>): Boolean {
-//    return !(retrievedUser.value?.lookingFor == null && retrievedUser.value?.gender == null && retrievedUser.value?.height == null && retrievedUser.value?.height == "")
-//}
-//
-//fun hasEssentials(retrievedUser: MutableState<User?>): Boolean {
-//    return !((retrievedUser.value?.work == null || retrievedUser.value?.work == "") && retrievedUser.value?.education == null && retrievedUser.value?.kids == null && retrievedUser.value?.religion == null && retrievedUser.value?.pets == null)
-//}
-//
-//fun hasHabits(retrievedUser: MutableState<User?>): Boolean {
-//    return !(retrievedUser.value?.exercise == null && retrievedUser.value?.smoking == null && retrievedUser.value?.drinking == null && retrievedUser.value?.marijuana == null)
-//}
-
-//@Composable
-//fun UserImage(imageResourceId: Int) {
-//    Card(
-//        modifier = Modifier.height(520.dp), colors = CardColors(
-//            containerColor = Color.White,
-//            contentColor = Color.Black,
-//            disabledContentColor = Color.Red,
-//            disabledContainerColor = Color.Red
-//        )
-//    ) {
-//        Box(
-//            modifier = Modifier.fillMaxWidth()
-//        ) {
-//            Image(
-//                painter = painterResource(id = imageResourceId),
-//                contentDescription = null,
-//                contentScale = ContentScale.Crop,
-//                modifier = Modifier.fillMaxSize()
-//            )
-//        }
-//    }
-//}
-
-//@Composable
-//fun VerificationVideo(videoUri: Uri?) {
-//    videoUri?.let { uri ->
-//        Box(
-//            modifier = Modifier.fillMaxWidth()
-//        ) {
-//            useExoPlayer(uri)
-//        }
-//    }
-//}
-
-
-//@Composable
-//fun ExoVideoPlayer(file: File) {
-//    val context = LocalContext.current
-//    val exoPlayer = remember { getSimpleExoPlayer(context, file) }
-//    AndroidView(
-//        modifier = Modifier
-//            .fillMaxSize()
-//            .padding(bottom = 20.dp),
-//        factory = { context1 ->
-//            PlayerView(context1).apply {
-//                player = exoPlayer
-//            }
-//        },
-//    )
-//}
-
-//@androidx.annotation.OptIn(UnstableApi::class)
-//@Composable
-//private fun useExoPlayer(videoUri: Uri): ExoPlayer {
-//
-//
-//    val context = LocalContext.current
-//    val exoPlayer = remember {
-//        ExoPlayer.Builder(context).build()
-//    }
-//
-//    DisposableEffect(exoPlayer) {
-//        onDispose {
-//            exoPlayer.release()
-//        }
-//    }
-//
-//    AndroidView(
-//        modifier = Modifier.fillMaxSize(),
-//        factory = { contextOne ->
-//            PlayerView(contextOne).apply {
-//                player = exoPlayer
-//                // Set the resize mode to Aspect Fill
-//                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-//                // Set the gravity of the controller to bottom
-//                controllerShowTimeoutMs = 0
-//                controllerAutoShow = false
-//                // Set padding to prevent cutting off the video
-//                contentDescription = "Video Player"
-//                setPadding(0, 0, 0, 0)
-//                // Build the media item.
-//                val mediaItem = MediaItem.fromUri(videoUri)
-//                // Set the media item to be played.
-//                exoPlayer.setMediaItem(mediaItem)
-//                // Prepare the player.
-//                exoPlayer.prepare()
-//                exoPlayer.clock.currentTimeMillis()
-//            }
-//        },
-//    )
-//
-//    return exoPlayer
-//}
-//
-//
-//@Composable
-//fun AboutMeText(text: String) {
-//    // Display user's about me text
-//    // You can use Text composable here to display the text
-//    Card(
-//        modifier = Modifier.shadow(16.dp), colors = CardColors(
-//            containerColor = Color.White,
-//            contentColor = Color.Black,
-//            disabledContentColor = Color.Red,
-//            disabledContainerColor = Color.Red
-//        )
-//    ) {
-//        Column(
-//            modifier = Modifier
-//                .fillMaxSize()
-//                .padding(16.dp)
-//        ) {
-//            Text(
-//                fontWeight = FontWeight.Bold, fontSize = 16.sp, text = "About Me"
-//            )
-//            Text(
-//                fontSize = Typography.bodyMedium.fontSize, text = text,
-//            )
-//        }
-//    }
-//}
-//
-////fun hasDetails(user: MutableState<User?>): Boolean {
-////    return !(user.lookingFor == null && user.value?.gender == null &&
-////            user.value?.height == null && retrievedUser.value?.height == "")
-////}
-////
-////fun hasEssentials(user: MutableState<User?>): Boolean {
-////    return !((retrievedUser.value?.work == null || retrievedUser.value?.work == "") &&
-////            retrievedUser.value?.education == null && retrievedUser.value?.kids == null &&
-////            retrievedUser.value?.religion == null && retrievedUser.value?.pets == null)
-////}
-////
-////fun hasHabits(retrievedUser: MutableState<User?>): Boolean {
-////    return !(retrievedUser.value?.exercise == null && retrievedUser.value?.smoking == null
-////            && retrievedUser.value?.drinking == null && retrievedUser.value?.marijuana == null)
-////}
-//
-//
-//@OptIn(ExperimentalGlideComposeApi::class)
-//@Composable
-//fun UserImageForPreview(media: String?) {
-//    Card(
-//        modifier = Modifier.height(520.dp),
-//        colors = CardColors(
-//            containerColor = Color.White,
-//            contentColor = Color.Black, disabledContentColor = Color.Red,
-//            disabledContainerColor = Color.Red
-//        )
-//    ) {
-//        Box(
-//            modifier = Modifier
-//                .fillMaxWidth()
-//        ) {
-//            GlideImage(
-//                model = media?.toUri(),
-//                contentDescription = "$media",
-//                contentScale = ContentScale.Crop,
-//                modifier = Modifier.fillMaxSize()
-//            )
-//        }
-//    }
-//}
-//
-//@Composable
-//fun VerificationVideoForPreview(videoUri: Uri?) {
-//    videoUri?.let { uri ->
-//        Box(
-//            modifier = Modifier
-//                .fillMaxWidth()
-//        ) {
-//            useExoPlayer(uri)
-//        }
-//    }
-//}
-//
-//
-//@Composable
-//fun ExoVideoPlayerForPreview(file: File) {
-////    val context = LocalContext.current
-////    val exoPlayer = remember { getSimpleExoPlayer(context, file) }
-////    AndroidView(
-////        modifier = Modifier
-////            .fillMaxSize()
-////            .padding(bottom = 20.dp),
-////        factory = { context1 ->
-////            PlayerView(context1).apply {
-////                player = exoPlayer
-////            }
-////        },
-////    )
-//}
-//
-//@androidx.annotation.OptIn(UnstableApi::class)
-//@Composable
-//private fun useExoPlayer(videoUri: Uri): ExoPlayer {
-//    val context = LocalContext.current
-//    val exoPlayer = remember {
-//        ExoPlayer.Builder(context).build()
-//    }
-//
-//    DisposableEffect(exoPlayer) {
-//        onDispose {
-//            exoPlayer.release()
-//        }
-//    }
-//
-//    AndroidView(
-//        modifier = Modifier.fillMaxSize(),
-//        factory = { context1 ->
-//            PlayerView(context1).apply {
-//                player = exoPlayer
-//                // Set the resize mode to Aspect Fill
-//                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-//                // Set the gravity of the controller to bottom
-//                controllerShowTimeoutMs = 0
-//                controllerAutoShow = false
-//                // Set padding to prevent cutting off the video
-//                contentDescription = "Video Player"
-//                setPadding(0, 0, 0, 0)
-//                // Build the media item.
-//                val mediaItem = MediaItem.fromUri(videoUri)
-//                // Set the media item to be played.
-//                exoPlayer.setMediaItem(mediaItem)
-//                // Prepare the player.
-//                exoPlayer.prepare()
-//            }
-//        },
-//    )
-//
-//    return exoPlayer
-//}
-
-
-//@Composable
-//fun AboutMeTextForPreview(text: String) {
-//    // Display user's about me text
-//    // You can use Text composable here to display the text
-//    Box() {
-//        Card(
-//            modifier = Modifier
-//                .shadow(16.dp),
-//            colors = CardColors(
-//                containerColor = Color.White,
-//                contentColor = Color.Black, disabledContentColor = Color.Red,
-//                disabledContainerColor = Color.Red
-//            )
-//        ) {
-//            Column(
-//                modifier = Modifier
-//                    .fillMaxSize()
-//                    .padding(16.dp)
-//            ) {
-//                Text(
-//                    fontWeight = FontWeight.Bold,
-//                    fontSize = 16.sp, text = "About Me"
-//                )
-//                Spacer(Modifier.width(4.dp))
-//                Icon(
-//                    painter = painterResource(id = R.drawable.message_regular),
-//                    "About Me", tint = Color(0xFFFF6F00)
-//                )
-//                Text(
-//                    fontSize = Typography.bodyMedium.fontSize, text = text,
-//                )
-//            }
-//        }
-//    }
-//}
 
 @Preview
 @Composable

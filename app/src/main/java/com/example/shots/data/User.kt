@@ -193,7 +193,7 @@ data class User(
     var newMessagesCount: Int?,
     var timesBookmarkedCount: Int?,
     var likesCount: Int?,
-    var shotsCount: Int?
+    var shotsCount: Int?,
 //    var interests: Interests
 ) {
 
@@ -203,7 +203,7 @@ data class User(
         TypeOfMedia.UNKNOWN, "", TypeOfMedia.UNKNOWN, "", TypeOfMedia.UNKNOWN, "", TypeOfMedia.UNKNOWN, "", TypeOfMedia.UNKNOWN, "", "",
         "", LookingFor.UNKNOWN, Gender.UNKNOWN, SexualOrientation.UNKNOWN, "", Education.UNKNOWN, Kids.UNKNOWN, Religion.UNKNOWN, Pets.UNKNOWN,
         Exercise.UNKNOWN, Smoking.UNKNOWN, Drinking.UNKNOWN, Marijuana.UNKNOWN, "", "", "", "", "", "",
-        ShowMe.UNKNOWN, Distance.TWENTY, Distance.TWENTY, 18, 35, 0, 0, 0, 0, 0, 0
+        ShowMe.UNKNOWN, Distance.SIXTY, Distance.SIXTY, 18, 35, 0, 0, 0, 0, 0, 0
     )
 
 

@@ -37,14 +37,15 @@ import kotlinx.coroutines.withContext
 @Composable
 fun PlayShotScreen(
     navController: NavController,
-    yourUserId: String,
     currentUserId: String,
     currentUserShot: String,
     shotType: String,
     receivedShotViewModel: ReceivedShotViewModel,
+    ifSeenReceivedShotViewModel: IfSeenReceivedShotViewModel,
     sentShotViewModel: SentShotViewModel,
     playShotViewModel: PlayShotViewModel,
-    usersViewModel: UsersViewModel,
+    userViewModel: UserViewModel,
+    firebaseViewModel: FirebaseViewModel
 ) {
 
     val context = LocalContext.current
@@ -109,54 +110,58 @@ fun PlayShotScreen(
     }
 
     val trashCallbackForReceivedShot: () -> Unit = {
-        receivedShotViewModel.removeReceivedShotFromFirebase(
-            context,
-            currentUserId,
-            { receivedIsTrashed ->
-                receivedWasTrashed = receivedIsTrashed
-                Log.d("PlayShotScreen", "receivedWasTrashed: $receivedIsTrashed")
-            },
-            { receivedIsNotTrashed ->
-                receivedWasNotTrashed = receivedIsNotTrashed
-            })
+        receivedShotViewModel.removeReceivedShot(currentUserId)
+        ifSeenReceivedShotViewModel.removeIfSeenReceivedShot(currentUserId)
+        backCallback()
     }
 
 
     val trashCallbackForSentShot: () -> Unit = {
-        receivedShotViewModel.removeReceivedShotFromFirebase(
-            context,
-            currentUserId,
-            { receivedIsTrashed ->
-                receivedWasTrashed = receivedIsTrashed
-                Log.d("PlayShotScreen", "receivedWasTrashed: $receivedIsTrashed")
-            },
-            { receivedIsNotTrashed ->
-                receivedWasNotTrashed = receivedIsNotTrashed
-            })
-        sentShotViewModel.removeSentShotFromFirebase(context, currentUserId,
-            { sentIsTrashed ->
-                sentWasTrashed = sentIsTrashed
-            },
-            { sentIsNotTrashed ->
-                sentWasNotTrashed = sentIsNotTrashed
-            })
+        receivedShotViewModel.removeTheirReceivedShot(currentUserId)
+        ifSeenReceivedShotViewModel.removeIfSeenReceivedShot(currentUserId)
+        sentShotViewModel.removeSentShot(context, currentUserId)
+        backCallback()
     }
 
     val checkCallback: () -> Unit = {
-        val client = GetStreamClientModule.provideGetStreamClient(context, usersViewModel)
+        val client =
+            GetStreamClientModule.provideGetStreamClient(context, userViewModel, firebaseViewModel)
+        Log.d("PlayShotScreen", "client - $client")
         client.createChannel(
             channelType = "messaging",
             channelId = "",
-            memberIds = listOf(yourUserId, currentUserId),
+            memberIds = listOf(userViewModel.getYourUserId(), currentUserId),
             extraData = emptyMap()
         ).enqueue { result ->
             if (result.isSuccess) {
-                Log.d("VideoHelper", "Channel succeeded!")
+                Log.d("PlayShotScreen", "Channel succeeded!")
                 navController.navigate("channels")
                 val channel = result.getOrNull()
             } else {
-                Log.d("VideoHelper", "Channel failed - ${result.errorOrNull()}")
-                // Handle result.error()
+                client.createChannel(
+                    channelType = "messaging",
+                    channelId = "",
+                    memberIds = listOf(userViewModel.getYourUserId(), currentUserId),
+                    extraData = emptyMap()
+                ).enqueue { secondResult ->
+
+                    if (secondResult.isSuccess) {
+                        Log.d("PlayShotScreen", "Channel succeeded!")
+                        navController.navigate("channels")
+                        val channel = secondResult.getOrNull()
+                    } else {
+                        scope.launch(Dispatchers.IO) {
+                            snackbarHostState.showSnackbar("Please try marking shot as made later.")
+                        }
+
+                        Log.d(
+                            "PlayShotScreen", "Channel failed - ${result.errorOrNull()}" +
+                                    "and your userId = ${userViewModel.getYourUserId()} and the " +
+                                    "other user's id is = $currentUserId"
+                        )
+                        // Handle result.error()
+                    }
+                }
             }
         }
         //This will be responsible for opening the messaging

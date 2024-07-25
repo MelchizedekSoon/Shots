@@ -49,7 +49,7 @@ import kotlinx.coroutines.withContext
 fun SignupLinkScreen(
     navController: NavController,
     signupViewModel: SignupViewModel,
-    usersViewModel: UsersViewModel,
+    userViewModel: UserViewModel,
     dataStore: DataStore<Preferences>
 ) {
     val firebaseAuth = FirebaseModule.provideFirebaseAuth()
@@ -113,11 +113,11 @@ fun SignupLinkScreen(
                 onClick = {
                     scope.launch {
                         withContext(Dispatchers.IO) {
-//                            val existingUser = usersViewModel.getUser()
+//                            val existingUser = userViewModel.getUser()
 //                            val updatedExistingUser =
 //                                existingUser?.copy(link = "")
 //                            if (updatedExistingUser != null) {
-//                                usersViewModel.userDao.update(updatedExistingUser)
+//                                userViewModel.userDao.update(updatedExistingUser)
 //                            }
                         }
                     }
@@ -180,7 +180,7 @@ fun SignupLinkScreen(
                         if (linkState.isNotEmpty()) {
                             scope.launch {
                                 withContext(Dispatchers.IO) {
-                                    val existingUser = usersViewModel.getUser()
+                                    val existingUser = userViewModel.getUser()
                                     val updatedExistingUser =
                                         existingUser?.copy(link = linkState)
 
@@ -190,7 +190,7 @@ fun SignupLinkScreen(
                                         val userData: MutableMap<String, Any> = mutableMapOf()
                                         val mediaItems: MutableMap<String, Uri> = mutableMapOf()
                                         userData["link"] = updatedExistingUser.link ?: ""
-                                        usersViewModel.saveUserDataToFirebase(
+                                        userViewModel.saveUserDataToFirebase(
                                             userId ?: "", userData,
                                             mediaItems, context
                                         ) {

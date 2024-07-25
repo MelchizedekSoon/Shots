@@ -64,7 +64,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 fun SignupHabitsScreen(
     navController: NavController, signupViewModel: SignupViewModel,
-    usersViewModel: UsersViewModel,
+    userViewModel: UserViewModel,
     dataStore: DataStore<Preferences>
 ) {
     val firebaseAuth = FirebaseModule.provideFirebaseAuth()
@@ -84,7 +84,7 @@ fun SignupHabitsScreen(
     var isGoingBack by rememberSaveable { mutableStateOf(false) }
     var isEditingProfile by remember { mutableStateOf(false) }
 
-    var user by remember { mutableStateOf(usersViewModel.getUser()) }
+    var user by remember { mutableStateOf(userViewModel.getUser()) }
 
     val backCallback = object : OnBackPressedCallback(true) {
         override fun handleOnBackPressed() {
@@ -142,7 +142,7 @@ fun SignupHabitsScreen(
                             userData["marijuana"] = "UNKNOWN"
 
                             val userId = user?.id ?: ""
-                            usersViewModel.saveUserDataToFirebase(
+                            userViewModel.saveUserDataToFirebase(
                                 userId ?: "", userData,
                                 mediaItems, context
                             ) {
@@ -565,7 +565,7 @@ fun SignupHabitsScreen(
                                 var updatedExistingUser = existingUser
 
                                 updatedExistingUser =
-                                    updatedExistingUser?.copy(
+                                    updatedExistingUser.copy(
                                         exercise = when (exerciseStoredOption) {
                                             "OFTEN" -> Exercise.OFTEN
                                             "SOMETIMES" -> Exercise.SOMETIMES
@@ -574,7 +574,7 @@ fun SignupHabitsScreen(
                                             else -> Exercise.UNKNOWN
                                         }
                                     )
-                                        ?.copy(
+                                        .copy(
                                             smoking = when (smokingStoredOption) {
                                                 "YES" -> Smoking.YES
                                                 "ON_OCCASION" -> Smoking.ON_OCCASION
@@ -582,7 +582,7 @@ fun SignupHabitsScreen(
                                                 else -> Smoking.UNKNOWN
                                             }
                                         )
-                                        ?.copy(
+                                        .copy(
                                             drinking = when (drinkingStoredOption) {
                                                 "YES" -> Drinking.YES
                                                 "ON_OCCASION" -> Drinking.ON_OCCASION
@@ -590,7 +590,7 @@ fun SignupHabitsScreen(
                                                 else -> Drinking.UNKNOWN
                                             }
                                         )
-                                        ?.copy(
+                                        .copy(
                                             marijuana = when (marijuanaStoredOption) {
                                                 "YES" -> Marijuana.YES
                                                 "ON_OCCASION" -> Marijuana.ON_OCCASION
@@ -636,8 +636,8 @@ fun SignupHabitsScreen(
                                             else -> "UNKNOWN"
                                         }
 
-                                    val userId = user?.id ?: ""
-                                    usersViewModel.saveUserDataToFirebase(
+                                    val userId = user.id ?: ""
+                                    userViewModel.saveUserDataToFirebase(
                                         userId ?: "", userData,
                                         mediaItems, context
                                     ) {

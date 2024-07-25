@@ -1,6 +1,5 @@
 package com.example.shots.ui.theme
 
-// Example: NavGraph.kt
 import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
@@ -44,35 +43,23 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.shots.FirebaseModule
 import com.example.shots.RoomModule
-import com.example.shots.data.Distance
-import com.example.shots.data.Drinking
-import com.example.shots.data.Education
-import com.example.shots.data.Exercise
-import com.example.shots.data.Gender
-import com.example.shots.data.Kids
-import com.example.shots.data.LookingFor
-import com.example.shots.data.Marijuana
-import com.example.shots.data.Pets
-import com.example.shots.data.Religion
-import com.example.shots.data.SexualOrientation
-import com.example.shots.data.ShowMe
-import com.example.shots.data.Smoking
-import com.example.shots.data.TypeOfMedia
-import com.example.shots.data.User
 
 @RequiresApi(Build.VERSION_CODES.Q)
 @Composable
 fun ShotsNav(
     authViewModel: AuthViewModel,
-    editProfileViewMode: EditProfileViewModel,
+    profileViewModel: ProfileViewModel,
+    filterViewModel: FilterViewModel,
+    editProfileViewModel: EditProfileViewModel,
     loginViewModel: LoginViewModel,
     signupViewModel: SignupViewModel,
-    usersViewModel: UsersViewModel,
+    userViewModel: UserViewModel,
     locationViewModel: LocationViewModel,
     bookmarkViewModel: BookmarkViewModel,
     receivedLikeViewModel: ReceivedLikeViewModel,
     sentLikeViewModel: SentLikeViewModel,
     likeViewModel: LikeViewModel,
+    ifSeenReceivedShotViewModel: IfSeenReceivedShotViewModel,
     receivedShotViewModel: ReceivedShotViewModel,
     sentShotViewModel: SentShotViewModel,
     blockedUserViewModel: BlockedUserViewModel,
@@ -80,8 +67,8 @@ fun ShotsNav(
     blockViewModel: BlockViewModel,
     playShotViewModel: PlayShotViewModel,
     searchViewModel: SearchViewModel,
+    firebaseViewModel: FirebaseViewModel,
     dataStore: DataStore<Preferences>
-
 ) {
     val context = LocalContext.current
     val firebaseAuth = FirebaseModule.provideFirebaseAuth()
@@ -93,26 +80,22 @@ fun ShotsNav(
     val scope = rememberCoroutineScope()
     val navController = rememberNavController()
 
-    val userDao = RoomModule.provideUserDao(appDatabase)
-    val bookmarkDao = RoomModule.provideBookmarkDao(appDatabase)
-    val receivedLikeDao = RoomModule.provideReceiveLikeDao(appDatabase)
-    val sentLikeDao = RoomModule.provideSentLikeDao(appDatabase)
-
     // Check if the user is already logged in
     var isLoggedIn by rememberSaveable {
         mutableStateOf(false)
     }
 
-    var cards by remember{ mutableStateOf(usersViewModel.fetchAllNonBlockedUsersFromRoom().reversed()) }
+    var cards by remember {
+        mutableStateOf(
+            userViewModel.fetchAllNonBlockedUsersFromRoom().reversed()
+        )
+    }
 
     Log.d("NavGraph", "cardsSize - ${cards.size}")
-
-    var hasCards by remember{ mutableStateOf(cards.size > 0) }
 
     // used to verify if the user has completed the signUp process by getting passed
     // what is currently the habits screen
     var hasSignedUp by rememberSaveable { mutableStateOf(false) }
-    var isNewSession = true
 
     var startDestination by remember {
         mutableStateOf(0)
@@ -126,11 +109,15 @@ fun ShotsNav(
             startDestination = preferences[intPreferencesKey("currentScreen")] ?: 0
         }
 
-        if (isLoggedIn && hasSignedUp) {
+        if (isLoggedIn) {
             navController.navigate("users")
         }
 
     }
+
+    Log.d("NavGraph", "startDestination - $startDestination")
+    Log.d("NavGraph", "hasSignedUp - $hasSignedUp")
+
 
 
     NavHost(
@@ -138,25 +125,25 @@ fun ShotsNav(
         //set to user for now but usually will be this when function
         startDestination =
         when (startDestination) {
-            0 -> if (hasSignedUp) {
+            0 -> if (isLoggedIn) {
                 "users"
             } else {
                 "login"
             }
 
-            1 -> "signupUsername"
-            2 -> "signupAge"
-            3 -> "signupDisplayName"
-            4 -> "signupMedia"
-            5 -> "signupProfileVideo"
-            6 -> "signupAboutMe"
-            7 -> "signupPrompts"
-            8 -> "signupLink"
-            9 -> "signupDetails"
-            10 -> "signupEssentials"
-            11 -> "signupFilter"
-            12 -> "signupHabits"
-            13 -> "users"
+            1 -> "signUp"
+//            2 -> "signupAge"
+//            3 -> "signupDisplayName"
+//            4 -> "signupMedia"
+//            5 -> "signupProfileVideo"
+//            6 -> "signupAboutMe"
+//            7 -> "signupPrompts"
+//            8 -> "signupLink"
+//            9 -> "signupDetails"
+//            10 -> "signupEssentials"
+//            11 -> "signupFilter"
+//            12 -> "signupHabits"
+//            13 -> "users"
             else -> "login"
         },
         modifier = Modifier.fillMaxSize(),
@@ -164,66 +151,83 @@ fun ShotsNav(
         composable("login") {
             LoginScreen(
                 navController,
+                loginViewModel,
+                authViewModel,
                 signupViewModel,
-                usersViewModel,
+                blockedUserViewModel,
+                userWhoBlockedYouViewModel,
+                editProfileViewModel,
+                userViewModel,
                 bookmarkViewModel,
+                ifSeenReceivedShotViewModel,
                 receivedLikeViewModel,
                 sentLikeViewModel,
                 receivedShotViewModel,
                 sentShotViewModel,
+                firebaseViewModel,
                 dataStore
             )
         }
         composable("signup") {
             SignupScreen(
-                navController, signupViewModel, usersViewModel, locationViewModel, dataStore
-            )
-        }
-        composable("signupAge") {
-            SignupAgeScreen(navController, signupViewModel, usersViewModel, dataStore)
-        }
-        composable("signupUsername") {
-            SignupUsernameScreen(navController, signupViewModel, usersViewModel, dataStore)
-        }
-        composable("signupDisplayName") {
-            SignupDisplayNameScreen(navController, signupViewModel, usersViewModel, dataStore)
-        }
-        composable("signupMedia") {
-            SignupMediaScreen(navController, signupViewModel, usersViewModel, dataStore)
-        }
-        composable("signupProfileVideo") {
-            SignupMediaProfileVideoScreen(navController, signupViewModel, usersViewModel, dataStore)
-        }
-        composable("signupAboutMe") {
-            SignupAboutMeScreen(navController, signupViewModel, usersViewModel, dataStore)
-        }
-        composable("signupPrompts") {
-            SignupPromptsScreen(navController, signupViewModel, usersViewModel, dataStore)
-        }
-        composable("signupLink") {
-            SignupLinkScreen(navController, signupViewModel, usersViewModel, dataStore)
-        }
-        composable("signupDetails") {
-            SignupDetailsScreen(navController, signupViewModel, usersViewModel, dataStore)
-        }
-        composable("signupEssentials") {
-            SignupEssentialsScreen(navController, signupViewModel, usersViewModel, dataStore)
-        }
-        composable("signupHabits") {
-            SignupHabitsScreen(navController, signupViewModel, usersViewModel, dataStore)
-        }
-        composable("search") {
-            SearchScreen(navController, searchViewModel, usersViewModel)
-        }
-        composable("profile") {
-            ProfileScreen(
                 navController,
-                usersViewModel,
+                userViewModel,
                 bookmarkViewModel,
                 receivedLikeViewModel,
                 sentLikeViewModel,
                 receivedShotViewModel,
                 sentShotViewModel,
+                blockedUserViewModel,
+                userWhoBlockedYouViewModel,
+                editProfileViewModel,
+                signupViewModel,
+                firebaseViewModel,
+                dataStore
+            )
+        }
+        composable("signupAge") {
+            SignupAgeScreen(navController, signupViewModel, userViewModel, dataStore)
+        }
+        composable("signupUsername") {
+            SignupUsernameScreen(navController, signupViewModel, userViewModel, dataStore)
+        }
+        composable("signupDisplayName") {
+            SignupDisplayNameScreen(navController, signupViewModel, userViewModel, dataStore)
+        }
+        composable("signupMedia") {
+            SignupMediaScreen(navController, signupViewModel, userViewModel, dataStore)
+        }
+        composable("signupProfileVideo") {
+            SignupMediaProfileVideoScreen(navController, signupViewModel, userViewModel, dataStore)
+        }
+        composable("signupAboutMe") {
+            SignupAboutMeScreen(navController, signupViewModel, userViewModel, dataStore)
+        }
+        composable("signupPrompts") {
+            SignupPromptsScreen(navController, signupViewModel, userViewModel, dataStore)
+        }
+        composable("signupLink") {
+            SignupLinkScreen(navController, signupViewModel, userViewModel, dataStore)
+        }
+        composable("signupDetails") {
+            SignupDetailsScreen(navController, signupViewModel, userViewModel, dataStore)
+        }
+        composable("signupEssentials") {
+            SignupEssentialsScreen(navController, signupViewModel, userViewModel, dataStore)
+        }
+        composable("signupHabits") {
+            SignupHabitsScreen(navController, signupViewModel, userViewModel, dataStore)
+        }
+        composable("search") {
+            SearchScreen(navController, searchViewModel, userViewModel)
+        }
+        composable("profile") {
+            ProfileScreen(
+                navController,
+                userViewModel,
+                editProfileViewModel,
+                profileViewModel,
+                firebaseViewModel,
                 dataStore
             )
         }
@@ -231,7 +235,8 @@ fun ShotsNav(
             UsersScreen(
                 navController,
                 signupViewModel,
-                usersViewModel,
+                editProfileViewModel,
+                userViewModel,
                 locationViewModel,
                 bookmarkViewModel,
                 receivedLikeViewModel,
@@ -247,15 +252,15 @@ fun ShotsNav(
             route = "userProfile/{userId}",
             arguments = listOf(navArgument("userId") { type = NavType.StringType })
         ) { navBackStackEntry ->
-            val arguments = requireNotNull(navBackStackEntry.arguments)
-            val userId = arguments.getString("userId")
+            var arguments = requireNotNull(navBackStackEntry.arguments)
+            var userId = arguments.getString("userId")
 
 
             // Pass the userId and ViewModel to the ProfileScreen
             UserProfileScreen(
                 navController,
                 userId ?: "",
-                usersViewModel,
+                userViewModel,
                 bookmarkViewModel,
                 sentLikeViewModel,
                 receivedLikeViewModel,
@@ -270,36 +275,36 @@ fun ShotsNav(
         composable("shots") {
             ShotsScreen(
                 navController,
-                usersViewModel,
+                userViewModel,
                 sentShotViewModel,
+                ifSeenReceivedShotViewModel,
                 receivedShotViewModel,
                 locationViewModel
             )
         }
         composable("editProfile") {
-            EditProfileScreen(navController, usersViewModel)
+            EditProfileScreen(navController, userViewModel, editProfileViewModel)
         }
         composable("editProfile/{suggestion}") { backStackEntry ->
             val suggestion = backStackEntry.arguments?.getString("suggestion")
-            EditProfileScreen(navController, usersViewModel)
+            EditProfileScreen(navController, userViewModel, editProfileViewModel)
         }
         composable("genderSearch") {
             GenderSearchScreen(navController)
         }
         composable("preview") {
-            PreviewScreen(navController, usersViewModel, locationViewModel)
+            PreviewScreen(navController, userViewModel, locationViewModel)
         }
         composable("bookmark") {
-            BookmarkScreen(navController, usersViewModel, bookmarkViewModel, locationViewModel)
+            BookmarkScreen(navController, userViewModel, bookmarkViewModel, locationViewModel)
         }
         composable("like") {
             LikeScreen(
                 navController = navController,
-                usersViewModel,
+                userViewModel,
                 receivedLikeViewModel,
                 sentLikeViewModel,
-                locationViewModel,
-                dataStore
+                locationViewModel
             )
         }
         composable(
@@ -308,7 +313,8 @@ fun ShotsNav(
             val arguments = requireNotNull(navBackStackEntry.arguments)
             val userId = arguments.getString("userId")
             CameraScreen(
-                navController = navController, userId, receivedShotViewModel, sentShotViewModel
+                navController = navController, userId, userViewModel.getYourUserId(),
+                receivedShotViewModel, ifSeenReceivedShotViewModel, sentShotViewModel
             )
         }
         composable(
@@ -323,7 +329,7 @@ fun ShotsNav(
             UserProfileScreen(
                 navController,
                 userId ?: "",
-                usersViewModel,
+                userViewModel,
                 bookmarkViewModel,
                 sentLikeViewModel,
                 receivedLikeViewModel,
@@ -344,7 +350,6 @@ fun ShotsNav(
             )
         ) { navBackStackEntry ->
             val arguments = requireNotNull(navBackStackEntry.arguments)
-            val yourUserId = firebaseAuth.currentUser?.displayName ?: ""
             val currentUserIdValue = arguments.getString("currentUserId")
             val currentUserShotValue = arguments.getString("currentUserShot")
             val shotTypeValue = arguments.getString("shotType")
@@ -352,9 +357,9 @@ fun ShotsNav(
 
             if (currentUserIdValue != null && currentUserShotValue != null && shotTypeValue != null) {
                 PlayShotScreen(
-                    navController, yourUserId, currentUserIdValue, currentUserShotValue,
-                    shotTypeValue, receivedShotViewModel,
-                    sentShotViewModel, playShotViewModel, usersViewModel
+                    navController, currentUserIdValue, currentUserShotValue, shotTypeValue,
+                    receivedShotViewModel, ifSeenReceivedShotViewModel, sentShotViewModel,
+                    playShotViewModel, userViewModel, firebaseViewModel
                 )
             }
             // Pass the userId and ViewModel to the ProfileScreen
@@ -363,7 +368,7 @@ fun ShotsNav(
         composable(
             route = "channels"
         ) {
-            ChannelsScreen(navController = navController, usersViewModel)
+            ChannelsScreen(navController = navController, userViewModel, firebaseViewModel)
         }
         composable(
             route = "channel/{channelId}",
@@ -378,18 +383,22 @@ fun ShotsNav(
         composable(
             route = "filter"
         ) {
-            FilterScreen(navController = navController, usersViewModel = usersViewModel)
+            FilterScreen(
+                navController = navController, userViewModel = userViewModel,
+                filterViewModel = filterViewModel
+            )
         }
         composable(
             route = "signupFilter"
         ) {
-            SignupFilterScreen(navController, usersViewModel, dataStore)
+            SignupFilterScreen(navController, userViewModel, dataStore)
         }
         composable(
             route = "blockedUsers"
         ) {
             BlockedUsersScreen(
-                navController, usersViewModel, blockedUserViewModel,
+                navController, userViewModel, blockedUserViewModel,
+                userWhoBlockedYouViewModel,
                 blockViewModel,
                 locationViewModel
             )
@@ -468,5 +477,5 @@ fun BottomNavigationBarPreview() {
 //@Preview
 //@Composable
 //fun ShotsNavPreview() {
-//    ShotsNav(authViewModel, editProfileViewMode, loginViewModel, signupViewModel, usersViewModel)
+//    ShotsNav(authViewModel, editProfileViewMode, loginViewModel, signupViewModel, userViewModel)
 //}
